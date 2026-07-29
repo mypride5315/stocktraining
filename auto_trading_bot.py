@@ -1032,7 +1032,12 @@ def process_ticker(ticker, cfg, token, state):
             print(f"  {ticker}: 진입 신호! {buy_price:,.0f}원 x {shares}주")
             result = place_order(cfg, token, ticker, "buy", shares, price=0)
             if not result.get("success"):
-                print(f"  {ticker}: 매수 주문이 거부되어 포지션을 열지 않습니다. 다음 주기에 재시도합니다.")
+                if result.get("msg_cd") in ACCOUNT_LEVEL_BLOCK_CODES:
+                    print(f"  {ticker}: 계좌/종목 자체 문제로 거래가 불가능합니다. "
+                          f"오늘은 이 종목 재시도를 중단합니다. (KIS 앱에서 수동 확인 권장)")
+                    pos.update({"day_traded": True, "blocked_reason": result.get("msg1", "")})
+                else:
+                    print(f"  {ticker}: 매수 주문이 거부되어 포지션을 열지 않습니다. 다음 주기에 재시도합니다.")
                 return
             pos.update({"in_position": True, "day_traded": True, "entry_price": buy_price,
                         "shares": shares, "stop_price": buy_price*(1-stop_pct_local),
@@ -1071,6 +1076,13 @@ def process_ticker(ticker, cfg, token, state):
             pos.update({"in_position": False})
         else:
             print(f"  {ticker}: 보유 중 (진입가 {entry_price:,.0f}, 현재 {latest['close']:,.0f}, 손절가 {stop_price:,.0f})")
+        return
+
+    # 포지션 없음 + 오늘 이미 매매 완료(또는 계좌/종목 문제로 차단)
+    if pos.get("blocked_reason"):
+        print(f"  {ticker}: 오늘 거래 불가 종목으로 표시됨 (사유: {pos['blocked_reason']})")
+    else:
+        print(f"  {ticker}: 오늘 매매 이미 완료됨 (추가 진입 없음)")
 
 
 # ============================================================
@@ -1113,7 +1125,7 @@ def main():
     us_market_hours = now.time() >= time(22, 0) or now.time() <= time(6, 0)
 
     if is_weekday and kr_market_hours:
-        print("\n[국내장 시간대 - 국내 2종목 처리]")
+        print(f"\n[국내장 시간대 - 국내 {len(TICKERS)}종목 처리]")
         for ticker in TICKERS:
             print(f"\n[{ticker}]")
             try:
@@ -1122,7 +1134,7 @@ def main():
                 print(f"  [오류] {e}")
 
     if us_market_hours:
-        print("\n[미국장 시간대 - 미국 6종목 처리]")
+        print(f"\n[미국장 시간대 - 미국 {len(US_TICKERS)}종목 처리]")
         for ticker, info in US_TICKERS.items():
             print(f"\n[{ticker}]")
             try:
@@ -1139,6 +1151,45 @@ def main():
     save_state(state)
     print(f"\n오늘 국내 누적손익: {state['daily_pnl']:+,.0f}원")
     print(f"오늘 미국 누적손익(원화환산): {state['daily_pnl_us']:+,.0f}원")
+
+    git_push_logs()
+
+
+def git_push_logs():
+    """C:\\TradingBot이 Git 저장소로 초기화되어 있으면, 로그/주문 폴더만 자동으로
+    커밋+push함. Git이 설정 안 되어 있으면 조용히 건너뜀(에러 아님).
+    ⚠️ .gitignore로 걸러지는 파일(kis_config.json 등 민감정보)은 애초에 git add 대상에서
+    아예 제외하고, 안전하게 로그성 폴더만 명시적으로 add함."""
+    git_dir = os.path.join(BASE_DIR, ".git")
+    if not os.path.isdir(git_dir):
+        return  # Git 저장소가 아니면 아무 것도 안 함 (기존 사용자에게 영향 없도록)
+
+    import subprocess
+    safe_paths = ["Log", "Order", "ScreeningLog", "ParamsLog"]
+    existing_paths = [p for p in safe_paths if os.path.isdir(os.path.join(BASE_DIR, p))]
+    if not existing_paths:
+        return
+
+    try:
+        subprocess.run(["git", "add"] + existing_paths, cwd=BASE_DIR, timeout=30,
+                        capture_output=True, text=True)
+
+        commit_msg = f"자동 로그 업데이트 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        commit_res = subprocess.run(["git", "commit", "-m", commit_msg], cwd=BASE_DIR,
+                                     timeout=30, capture_output=True, text=True)
+        # 변경사항이 없으면 commit이 실패하는데(정상), 그 경우는 조용히 넘어감
+        if commit_res.returncode != 0 and "nothing to commit" not in commit_res.stdout.lower():
+            if commit_res.stdout.strip():
+                print(f"  [Git] 커밋 결과: {commit_res.stdout.strip()[:200]}")
+
+        push_res = subprocess.run(["git", "push"], cwd=BASE_DIR, timeout=60,
+                                   capture_output=True, text=True)
+        if push_res.returncode == 0:
+            print("  [Git] 로그를 원격 저장소에 push 완료")
+        else:
+            print(f"  [Git] push 실패(무시하고 계속 진행): {push_res.stderr.strip()[:200]}")
+    except Exception as e:
+        print(f"  [Git] 자동 push 중 오류(무시하고 계속 진행): {e}")
 
 
 
