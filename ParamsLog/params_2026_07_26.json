@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-07-26T23:56:51.781233",
+  "default": {
+    "orb_bars": 6,
+    "stop_pct": 0.015,
+    "tp_trigger_pct": 0.01,
+    "tp_max_pct": 0.04
+  },
+  "per_ticker": {
+    "NU": {
+      "orb_bars": 6,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.03,
+      "note": "주간 재최적화 (거래19건, 총수익률7.00%) - 신뢰도 양호(표본 26거래일)",
+      "sample_days": 26,
+      "orb_minutes": 30
+    },
+    "SOFI": {
+      "orb_bars": 6,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.03,
+      "note": "주간 재최적화 (거래15건, 총수익률10.13%) - 신뢰도 양호(표본 26거래일)",
+      "sample_days": 26,
+      "orb_minutes": 30
+    },
+    "AAL": {
+      "orb_bars": 3,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 (거래16건, 총수익률1.49%) - 신뢰도 양호(표본 26거래일)",
+      "sample_days": 26,
+      "orb_minutes": 15
+    },
+    "T": {
+      "orb_bars": 6,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.01,
+      "tp_max_pct": 0.04,
+      "note": "주간 재최적화 (거래21건, 총수익률18.10%) - 신뢰도 양호(표본 26거래일)",
+      "sample_days": 26,
+      "orb_minutes": 30
+    },
+    "CLF": {
+      "orb_bars": 9,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.04,
+      "note": "주간 재최적화 (거래17건, 총수익률12.86%) - 신뢰도 양호(표본 26거래일)",
+      "sample_days": 26,
+      "orb_minutes": 45
+    },
+    "251340": {
+      "orb_bars": 3,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 (거래14건, 총수익률15.55%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "114800": {
+      "orb_bars": 3,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 (거래20건, 총수익률7.49%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "229200": {
+      "orb_bars": 3,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.03,
+      "note": "주간 재최적화 (거래11건, 총수익률1.87%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "002140": {
+      "orb_bars": 3,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.04,
+      "note": "주간 재최적화 (거래12건, 총수익률5.29%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "233740": {
+      "orb_bars": 6,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.01,
+      "tp_max_pct": 0.03,
+      "note": "주간 재최적화 (거래10건, 총수익률4.57%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 30
+    }
+  }
+}

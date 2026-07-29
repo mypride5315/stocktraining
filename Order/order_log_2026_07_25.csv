@@ -1,0 +1,3 @@
+﻿timestamp,action,ticker,price,shares,reason,extra,mode
+2026-07-25T00:00:09.061091,BUY_US,SQQQ,44.599998474121094,8,orb_vwap_breakout,,MOCK
+2026-07-25T00:00:14.004793,BUY_US,SOXS,50.600101470947266,7,orb_vwap_breakout,,MOCK
