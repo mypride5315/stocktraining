@@ -1,3 +1,4 @@
 ﻿timestamp,action,ticker,price,shares,reason,extra,mode
 2026-08-04T23:05:08.174273,BUY_US,INTC,97.5199966430664,3,orb_vwap_breakout,,MOCK
 2026-08-04T23:15:08.233374,SELL_US,INTC,98.4000015258789,3,take_profit,pnl_krw=3564,MOCK
+2026-08-05T00:10:08.923123,SELL_US,INTC,99.04000091552734,3,take_profit,익절 (목표 수익 도달),pnl_krw=1861,MOCK
