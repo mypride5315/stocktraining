@@ -1,2 +1,3 @@
 ﻿timestamp,action,ticker,price,shares,reason,extra,mode
 2026-08-04T23:05:08.174273,BUY_US,INTC,97.5199966430664,3,orb_vwap_breakout,,MOCK
+2026-08-04T23:15:08.233374,SELL_US,INTC,98.4000015258789,3,take_profit,pnl_krw=3564,MOCK
