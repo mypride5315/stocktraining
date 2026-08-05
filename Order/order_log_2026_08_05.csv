@@ -1,3 +1,4 @@
 ﻿timestamp,action,ticker,price,shares,reason,reason_kr,extra,mode
 2026-08-05T00:00:03.826095,BUY_US,AAPL,306.2349853515625,1,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
 2026-08-05T00:00:08.781882,BUY_US,INTC,98.58059692382812,3,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
+2026-08-05T10:35:38.501440,BUY,114800,1080.0,462,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
