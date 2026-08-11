@@ -58,11 +58,18 @@ def in_time_range(now, ranges):
 
 
 def is_weekday(now):
-    return now.weekday() < 5  # 0=월 ... 4=금
+    # ⚠️ 자정이 아닌 새벽 5시 기준 거래일로 판단함.
+    # (안 맞추면 금요일 밤 미국장이 토요일 새벽까지 이어질 때 "주말"로 오판해서
+    #  워치독이 스킵해버리는 문제가 생김)
+    trading_day = now - timedelta(hours=5)
+    return trading_day.weekday() < 5  # 0=월 ... 4=금
 
 
 def find_today_log():
-    fname = f"{LOG_PREFIX}{datetime.now().strftime('%Y_%m_%d')}.txt"
+    # ⚠️ auto_trading_bot.py와 동일하게, 자정이 아닌 새벽 5시 기준 거래일을 사용함.
+    # (안 맞추면 00:00~05:00 사이에 "오늘자 로그가 없다"고 잘못 판단해서 헛알림이 감)
+    trading_day = (datetime.now() - timedelta(hours=5)).strftime("%Y_%m_%d")
+    fname = f"{LOG_PREFIX}{trading_day}.txt"
     path = os.path.join(LOG_DIR, fname)
     return path if os.path.exists(path) else None
 

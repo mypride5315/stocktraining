@@ -64,13 +64,23 @@ class TeeOutput:
         self.log.flush()
 
 
-from datetime import datetime as _dt
+from datetime import datetime as _dt, timedelta as _timedelta
 
 BASE_DIR = r"C:\TradingBot"
 LOG_DIR = os.path.join(BASE_DIR, "Log")
 ORDER_DIR = os.path.join(BASE_DIR, "Order")
 
-_today_str = _dt.now().strftime("%Y_%m_%d")
+
+def _trading_day_str(dt_obj=None):
+    """'거래일' 문자열을 반환. 한국시간 자정이 아니라 새벽 5시를 하루의 경계로 삼음.
+    -> 미국장(22:30~05:00, 자정을 넘김)이 통째로 '시작한 날짜' 하나로 묶이고,
+       그 사이에 로그/CSV 파일이 둘로 쪼개지거나 포지션 상태가 잘못 리셋되는 걸 방지함.
+    (국내장은 09:00~15:30로 애초에 자정을 안 넘기므로 이 보정의 영향을 안 받음)"""
+    d = dt_obj or _dt.now()
+    return (d - _timedelta(hours=5)).strftime("%Y_%m_%d")
+
+
+_today_str = _trading_day_str()
 _log_path = os.path.join(LOG_DIR, f"trading_log_{_today_str}.txt")
 try:
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -83,10 +93,13 @@ print(f"\n{'='*60}")
 print(f" 실행 시각: {_dt.now()}")
 print(f" 파이썬 실행 경로: {sys.executable}")
 print(f" 파이썬 버전: {sys.version}")
+SCRIPT_VERSION_TAG = "2026-07-30-v1 (Git인코딩수정+국내계좌차단)"
+print(f" 스크립트 버전: {SCRIPT_VERSION_TAG}")
 
 try:
     import json
     import io
+    import csv
     import itertools
     import glob
     import time as time_module
@@ -217,10 +230,24 @@ _DEFAULT_US_TICKERS = {
 WATCHLIST_PATH = os.path.join(BASE_DIR, "watchlist.json")
 
 
-def load_watchlist():
+def _is_market_open_moment():
+    """지금이 국내장(09:00~09:04) 또는 미국장(22:30~22:34 KST) 시작 직후인지 판단.
+    이 시점에만 종목/파라미터 상세 목록을 로그에 남기고, 그 외 5분 주기에는
+    생략해서 로그가 매번 길게 반복되는 걸 방지함."""
+    now = datetime.now().time()
+    kr_open_window = time(9, 0) <= now <= time(9, 4, 59)
+    us_open_window = time(22, 30) <= now <= time(22, 34, 59)
+    return kr_open_window or us_open_window
+
+
+_SHOW_SESSION_START_LOG = _is_market_open_moment()
+
+
+def load_watchlist(verbose=True):
     """kis_stock_screener.py가 생성한 watchlist.json이 있으면 그걸 사용하고,
     없거나 읽기 실패하면 기본 종목 리스트로 안전하게 대체함.
-    종목코드가 비어있거나(NaN 등) 이상한 항목은 여기서도 한 번 더 걸러냄."""
+    종목코드가 비어있거나(NaN 등) 이상한 항목은 여기서도 한 번 더 걸러냄.
+    verbose=False면 정상 로드 시의 상세 출력은 생략함(경고/에러는 항상 출력)."""
     if not os.path.exists(WATCHLIST_PATH):
         print(f"[알림] {WATCHLIST_PATH} 가 없어 기본 종목 리스트를 사용합니다.")
         return dict(_DEFAULT_TICKERS), dict(_DEFAULT_US_TICKERS)
@@ -248,8 +275,9 @@ def load_watchlist():
             print("[경고] watchlist.json 내용이 비어있거나 전부 무효해서 기본 리스트를 사용합니다.")
             return dict(_DEFAULT_TICKERS), dict(_DEFAULT_US_TICKERS)
 
-        print(f"[watchlist.json 적용] 생성시각={wl.get('generated_at','?')}, "
-              f"국내 {len(kr_clean)}종목, 미국 {len(us_clean)}종목")
+        if verbose:
+            print(f"[watchlist.json 적용] 생성시각={wl.get('generated_at','?')}, "
+                  f"국내 {len(kr_clean)}종목, 미국 {len(us_clean)}종목")
         # 둘 중 하나가 비어있으면 그 시장은 기본값으로 보완 (완전히 매매 없이 비워두지 않도록)
         if not kr_clean:
             print("[알림] watchlist에 유효한 국내 종목이 없어 국내는 기본 리스트를 사용합니다.")
@@ -264,7 +292,7 @@ def load_watchlist():
         return dict(_DEFAULT_TICKERS), dict(_DEFAULT_US_TICKERS)
 
 
-TICKERS, US_TICKERS = load_watchlist()
+TICKERS, US_TICKERS = load_watchlist(verbose=_SHOW_SESSION_START_LOG)
 
 US_MARKET_OPEN_ET = time(9, 30)   # 미국 동부시간 정규장 개장
 US_FORCE_CLOSE_ET = time(15, 50)  # 정규장 마감 10분 전 강제청산
@@ -293,12 +321,13 @@ def _validate_strategy_entry(entry):
     return {"orb_minutes": orb_minutes, "stop_pct": stop_pct, "tp_trigger_pct": tp_trigger_pct}
 
 
-def load_strategy_params():
+def load_strategy_params(verbose=True):
     """weekly_optimizer.py가 생성한 strategy_params.json(종목별 개별 파라미터)을 읽어서
     {종목코드: {orb_minutes, stop_pct, tp_trigger_pct}} 딕셔너리로 반환.
     없거나 이상하면 전 종목에 기존 검증된 기본값을 적용.
     tp_max_pct(익절 상한)는 백테스트 전용 개념이라 실전 매매 로직에서는 사용하지 않음
-    (실전은 트리거 도달 즉시 시장가 매도)."""
+    (실전은 트리거 도달 즉시 시장가 매도).
+    verbose=False면 정상 로드 시의 종목별 상세 출력은 생략함(경고/에러는 항상 출력)."""
     if not os.path.exists(STRATEGY_PARAMS_PATH):
         print(f"[알림] {STRATEGY_PARAMS_PATH} 가 없어 전 종목에 기본 전략 파라미터를 사용합니다.")
         return {}, dict(_DEFAULT_STRATEGY)
@@ -318,12 +347,13 @@ def load_strategy_params():
                 continue
             per_ticker[ticker.strip()] = _validate_strategy_entry(entry)
 
-        print(f"[strategy_params.json 적용] 생성시각={p.get('generated_at','?')}, "
-              f"종목별 파라미터 {len(per_ticker)}건 로드")
-        for ticker, entry in per_ticker.items():
-            note = per_ticker_raw.get(ticker, {}).get("note", "")
-            print(f"  {ticker}: 초기박스={entry['orb_minutes']}분, 손절={entry['stop_pct']*100:.1f}%, "
-                  f"익절트리거={entry['tp_trigger_pct']*100:.1f}%  ({note})")
+        if verbose:
+            print(f"[strategy_params.json 적용] 생성시각={p.get('generated_at','?')}, "
+                  f"종목별 파라미터 {len(per_ticker)}건 로드")
+            for ticker, entry in per_ticker.items():
+                note = per_ticker_raw.get(ticker, {}).get("note", "")
+                print(f"  {ticker}: 초기박스={entry['orb_minutes']}분, 손절={entry['stop_pct']*100:.1f}%, "
+                      f"익절트리거={entry['tp_trigger_pct']*100:.1f}%  ({note})")
         return per_ticker, default_entry
 
     except Exception as e:
@@ -331,7 +361,7 @@ def load_strategy_params():
         return {}, dict(_DEFAULT_STRATEGY)
 
 
-PER_TICKER_STRATEGY, DEFAULT_STRATEGY = load_strategy_params()
+PER_TICKER_STRATEGY, DEFAULT_STRATEGY = load_strategy_params(verbose=_SHOW_SESSION_START_LOG)
 
 
 def get_strategy_for(ticker):
@@ -369,7 +399,10 @@ def load_state():
     else:
         state = {}
 
-    today_str = date.today().isoformat()
+    # ⚠️ 자정(00:00) 기준이 아니라 새벽 5시 기준으로 '거래일'을 판단함.
+    # 미국장(22:30~05:00)이 한국시간 자정을 넘기는데, 자정 기준으로 하면
+    # 그 세션 도중에 '새 거래일'로 오인해서 포지션 상태가 잘못 리셋될 수 있음.
+    today_str = (datetime.now() - timedelta(hours=5)).date().isoformat()
     if state.get("date") != today_str:
         # 날짜가 바뀌어도 포지션(positions/us_positions)은 절대 그냥 지우지 않음.
         # 만약 전날 청산 안 된 포지션이 남아있으면, process_ticker/process_us_ticker가
@@ -472,14 +505,69 @@ def send_kakao_message(text):
         print(f"  [알림] 카카오톡 전송 중 오류(무시하고 계속 진행): {e}")
 
 
+REASON_LABELS_KR = {
+    "orb_vwap_breakout": "박스+VWAP 동시 돌파 매수",
+    "take_profit": "익절 (목표 수익 도달)",
+    "stop_loss": "손절 (손실 제한)",
+    "time_close": "장마감 강제청산",
+    "emergency_carryover_close": "이월 포지션 비상매도",
+}
+
+
+def _append_csv_row_safe(path, row_df):
+    """CSV에 한 줄을 추가하되, 기존 파일의 헤더(컬럼 구성)가 지금 쓰려는 것과 다르면
+    (예: 코드 업데이트로 컬럼이 늘어난 경우) 전체 파일을 새 스키마로 안전하게 재작성함.
+    -> 헤더와 실제 데이터의 컬럼 수가 어긋나서 CSV가 깨지는 걸 방지."""
+    if not os.path.exists(path):
+        row_df.to_csv(path, mode="a", index=False, header=True, encoding="utf-8-sig")
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            existing_header = f.readline().strip().split(",")
+    except Exception:
+        existing_header = []
+
+    if existing_header == list(row_df.columns):
+        # 스키마가 같으면 그냥 이어붙이기(가장 흔한 정상 케이스, 빠름)
+        row_df.to_csv(path, mode="a", index=False, header=False, encoding="utf-8-sig")
+        return
+
+    # 스키마가 다름 -> 기존 파일을 최대한 읽어서(형식이 깨져있어도) 새 스키마로 합쳐 재작성
+    print(f"  [알림] {os.path.basename(path)}의 기존 컬럼 구성이 달라져서, 전체를 새 형식으로 정리합니다.")
+    old_rows = []
+    try:
+        with open(path, "r", encoding="utf-8-sig") as f:
+            reader = csv.reader(f)
+            old_header = next(reader)
+            for r in reader:
+                if len(r) == len(old_header):
+                    old_rows.append(dict(zip(old_header, r)))
+                # 컬럼 수가 안 맞는 예전 깨진 줄은 컬럼명 순서대로 최대한 매칭 시도
+                elif len(r) > 0:
+                    old_rows.append(dict(zip(old_header[:len(r)] + [f"_extra{i}" for i in range(len(r)-len(old_header))], r)))
+    except Exception as e:
+        print(f"  [경고] 기존 {os.path.basename(path)} 읽기 중 문제 발생({e}), 기존 내용은 최대한 보존하며 진행합니다.")
+
+    old_df = pd.DataFrame(old_rows) if old_rows else pd.DataFrame(columns=row_df.columns)
+    combined = pd.concat([old_df, row_df], ignore_index=True, sort=False)
+    # 새로 정의한 컬럼 순서를 기준으로 정리 (예전에만 있던 임시 컬럼은 맨 뒤로)
+    ordered_cols = list(row_df.columns) + [c for c in combined.columns if c not in row_df.columns]
+    combined = combined[ordered_cols]
+    combined.to_csv(path, index=False, encoding="utf-8-sig")
+
+
 def log_order(action, ticker, price, shares, reason, extra=""):
     """로그 기록 실패가 매매 상태 처리를 막지 않도록, 절대 예외를 위로 던지지 않음"""
-    today_str = datetime.now().strftime("%Y_%m_%d")
+    # 자정이 아닌 새벽 5시 기준 거래일 사용 -> 미국장이 자정을 넘겨도 CSV가 하나로 유지됨
+    today_str = _trading_day_str()
     order_log_path = os.path.join(ORDER_DIR, f"order_log_{today_str}.csv")
+
+    reason_kr = REASON_LABELS_KR.get(reason, reason)  # 모르는 코드가 들어와도 원문 그대로 표시(누락 방지)
 
     row = pd.DataFrame([{
         "timestamp": datetime.now().isoformat(), "action": action, "ticker": ticker,
-        "price": price, "shares": shares, "reason": reason, "extra": extra,
+        "price": price, "shares": shares, "reason": reason, "reason_kr": reason_kr, "extra": extra,
         "mode": "MOCK" if IS_MOCK else "REAL",
     }])
 
@@ -490,16 +578,29 @@ def log_order(action, ticker, price, shares, reason, extra=""):
     msg = (f"[{mode_label}] {action_label} 체결\n"
            f"종목: {ticker}\n"
            f"가격: {price_str} x {shares}주\n"
-           f"사유: {reason}")
+           f"사유: {reason_kr}")
     if extra:
-        msg += f"\n{extra}"
+        # extra는 보통 "pnl=1234" 또는 "pnl_krw=1234" 형식 -> 사람이 읽기 쉬운 손익 표시로 변환
+        extra_display = extra
+        if extra.startswith("pnl_krw="):
+            try:
+                val = float(extra.split("=", 1)[1])
+                extra_display = f"손익: {val:+,.0f}원"
+            except ValueError:
+                pass
+        elif extra.startswith("pnl="):
+            try:
+                val = float(extra.split("=", 1)[1])
+                extra_display = f"손익: {val:+,.0f}원"
+            except ValueError:
+                pass
+        msg += f"\n{extra_display}"
     send_kakao_message(msg)
 
     for attempt in range(3):
         try:
             os.makedirs(ORDER_DIR, exist_ok=True)
-            header = not os.path.exists(order_log_path)
-            row.to_csv(order_log_path, mode="a", index=False, header=header, encoding="utf-8-sig")
+            _append_csv_row_safe(order_log_path, row)
             return
         except PermissionError as e:
             print(f"  [경고] {os.path.basename(order_log_path)} 쓰기 실패(다른 프로그램이 열어둔 상태일 수 있음), 재시도 {attempt+1}/3: {e}")
@@ -839,11 +940,12 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
             if result.get("success"):
                 entry_price = pos["entry_price"]
                 pnl_usd = (emergency_price - entry_price) * shares
-                pnl_krw = pnl_usd * state.get("fx_rate", 1350)
+                trade_fx_rate = get_fx_rate_safe()  # 매매 시점의 실시간 환율로 계산
+                pnl_krw = pnl_usd * trade_fx_rate
                 state["daily_pnl_us"] = state.get("daily_pnl_us", 0) + pnl_krw
                 log_order("SELL_US", ticker, emergency_price, shares, "emergency_carryover_close",
                           extra=f"pnl_krw={pnl_krw:.0f}")
-                print(f"  {ticker}: 비상 매도 성공. 이제 새 세션을 시작합니다.")
+                print(f"  {ticker}: 비상 매도 성공 (적용환율 {trade_fx_rate:.2f}원/달러). 이제 새 세션을 시작합니다.")
             else:
                 print(f"  {ticker}: [심각] 비상 매도도 실패했습니다. 반드시 증권사 앱에서 실제 보유 현황을 "
                       f"직접 확인하고 필요시 수동으로 정리해주세요. 프로그램 상태는 강제로 초기화합니다.")
@@ -879,6 +981,9 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
             print(f"  {ticker}: 장마감 임박(미국 동부시간 {latest_et_time}), 신규 진입 안 함")
             return
         if latest["close"] > orb_high and latest["close"] > latest["vwap"]:
+            # 실제 매수 시점의 환율로 다시 계산 (5분 대기 사이클마다가 아니라, 진입 순간에만 조회)
+            trade_fx_rate = get_fx_rate_safe()
+            capital_usd = CAPITAL_PER_TICKER_KRW / trade_fx_rate
             buy_price = float(latest["close"])
             shares = int(capital_usd // buy_price)
             if shares <= 0:
@@ -898,10 +1003,22 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
                 return
             pos.update({"in_position": True, "day_traded": True, "entry_price": buy_price,
                         "shares": shares, "stop_price": buy_price * (1 - stop_pct_local),
-                        "entry_time": datetime.now().isoformat(), "exchange": used_exchange})
+                        "entry_time": datetime.now().isoformat(), "exchange": used_exchange,
+                        "entry_fx_rate": trade_fx_rate})
             log_order("BUY_US", ticker, buy_price, shares, "orb_vwap_breakout")
+            print(f"  {ticker}: 매수 체결 (현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f}, "
+                  f"VWAP ${latest['vwap']:.2f}, 손절가 ${pos['stop_price']:.2f}, "
+                  f"적용환율 {trade_fx_rate:.2f}원/달러)")
         else:
-            print(f"  {ticker}: 대기 중 (현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f})")
+            above_box = latest["close"] > orb_high
+            above_vwap = latest["close"] > latest["vwap"]
+            reason = []
+            if not above_box:
+                reason.append("박스상단 미돌파")
+            if not above_vwap:
+                reason.append("VWAP 아래")
+            print(f"  {ticker}: 대기 중 (현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f}, "
+                  f"VWAP ${latest['vwap']:.2f}) - {', '.join(reason)}")
         return
 
     if pos["in_position"]:
@@ -927,32 +1044,44 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
                       f"포지션을 그대로 유지하고 다음 주기에 재시도합니다.")
                 return
             pnl_usd = (sell_price - entry_price) * shares
-            pnl_krw = pnl_usd * state.get("fx_rate", 1350)
+            trade_fx_rate = get_fx_rate_safe()  # 매매 시점의 실시간 환율로 계산
+            pnl_krw = pnl_usd * trade_fx_rate
             state["daily_pnl_us"] = state.get("daily_pnl_us", 0) + pnl_krw
             log_order("SELL_US", ticker, sell_price, shares, exit_reason, extra=f"pnl_krw={pnl_krw:.0f}")
+            print(f"  {ticker}: 매도 체결 (현재가 ${latest['close']:.2f}, VWAP ${latest['vwap']:.2f}, "
+                  f"손익 ${pnl_usd:+.2f} / {pnl_krw:+,.0f}원, 적용환율 {trade_fx_rate:.2f}원/달러)")
             pos.update({"in_position": False})
         else:
-            print(f"  {ticker}: 보유 중 (진입가 ${entry_price:.2f}, 현재 ${latest['close']:.2f})")
+            print(f"  {ticker}: 보유 중 (진입가 ${entry_price:.2f}, 현재 ${latest['close']:.2f}, "
+                  f"박스상단 ${orb_high:.2f}, VWAP ${latest['vwap']:.2f}, 손절가 ${stop_price:.2f})")
         return
 
     # 포지션 없음 + 오늘(이번 세션) 이미 매매 완료
+    price_info = f"(현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f}, VWAP ${latest['vwap']:.2f})"
     if pos.get("blocked_reason"):
-        print(f"  {ticker}: 오늘 거래 불가 종목으로 표시됨 (사유: {pos['blocked_reason']})")
+        print(f"  {ticker}: 오늘 거래 불가 종목으로 표시됨 {price_info} - 사유: {pos['blocked_reason']}")
     else:
-        print(f"  {ticker}: 이번 세션 매매 이미 완료됨 (추가 진입 없음)")
+        print(f"  {ticker}: 이번 세션 매매 이미 완료됨 {price_info}")
 
 
 def get_fx_rate_safe():
     if yf is None:
+        print("  [환율] yfinance 미설치로 기본값(1350원) 사용")
         return 1350
     try:
-        df = yf.download("KRW=X", period="5d", interval="1d", progress=False, timeout=15)
+        # 일봉(전일 종가)보다 최근 분봉이 매매 시점 환율에 더 가까움
+        df = yf.download("KRW=X", period="1d", interval="5m", progress=False, timeout=15)
+        if df.empty:
+            df = yf.download("KRW=X", period="5d", interval="1d", progress=False, timeout=15)
         if not df.empty:
             rate = float(df["Close"].iloc[-1])
             if rate > 500:
                 return rate
-    except Exception:
-        pass
+            print(f"  [환율] 조회된 값({rate})이 비정상적으로 낮아 기본값(1350원) 사용")
+        else:
+            print("  [환율] 조회 결과가 비어있어 기본값(1350원) 사용")
+    except Exception as e:
+        print(f"  [환율] 조회 실패({e})로 기본값(1350원) 사용")
     return 1350
 
 
@@ -1043,8 +1172,18 @@ def process_ticker(ticker, cfg, token, state):
                         "shares": shares, "stop_price": buy_price*(1-stop_pct_local),
                         "entry_time": now.isoformat()})
             log_order("BUY", ticker, buy_price, shares, "orb_vwap_breakout")
+            print(f"  {ticker}: 매수 체결 (현재가 {latest['close']:,.0f}, 박스상단 {orb_high:,.0f}, "
+                  f"VWAP {latest['vwap']:,.0f}, 손절가 {pos['stop_price']:,.0f})")
         else:
-            print(f"  {ticker}: 대기 중 (현재가 {latest['close']:,.0f}, 박스상단 {orb_high:,.0f})")
+            above_box = latest["close"] > orb_high
+            above_vwap = latest["close"] > latest["vwap"]
+            reason = []
+            if not above_box:
+                reason.append("박스상단 미돌파")
+            if not above_vwap:
+                reason.append("VWAP 아래")
+            print(f"  {ticker}: 대기 중 (현재가 {latest['close']:,.0f}, 박스상단 {orb_high:,.0f}, "
+                  f"VWAP {latest['vwap']:,.0f}) - {', '.join(reason)}")
         return
 
     # --- 포지션 보유 중: 청산 조건 체크 ---
@@ -1073,16 +1212,20 @@ def process_ticker(ticker, cfg, token, state):
             pnl = (sell_price - entry_price) * shares
             state["daily_pnl"] = state.get("daily_pnl", 0) + pnl
             log_order("SELL", ticker, sell_price, shares, exit_reason, extra=f"pnl={pnl:.0f}")
+            print(f"  {ticker}: 매도 체결 (현재가 {latest['close']:,.0f}, VWAP {latest['vwap']:,.0f}, "
+                  f"손익 {pnl:+,.0f}원)")
             pos.update({"in_position": False})
         else:
-            print(f"  {ticker}: 보유 중 (진입가 {entry_price:,.0f}, 현재 {latest['close']:,.0f}, 손절가 {stop_price:,.0f})")
+            print(f"  {ticker}: 보유 중 (진입가 {entry_price:,.0f}, 현재 {latest['close']:,.0f}, "
+                  f"박스상단 {orb_high:,.0f}, VWAP {latest['vwap']:,.0f}, 손절가 {stop_price:,.0f})")
         return
 
     # 포지션 없음 + 오늘 이미 매매 완료(또는 계좌/종목 문제로 차단)
+    price_info = f"(현재가 {latest['close']:,.0f}, 박스상단 {orb_high:,.0f}, VWAP {latest['vwap']:,.0f})"
     if pos.get("blocked_reason"):
-        print(f"  {ticker}: 오늘 거래 불가 종목으로 표시됨 (사유: {pos['blocked_reason']})")
+        print(f"  {ticker}: 오늘 거래 불가 종목으로 표시됨 {price_info} - 사유: {pos['blocked_reason']}")
     else:
-        print(f"  {ticker}: 오늘 매매 이미 완료됨 (추가 진입 없음)")
+        print(f"  {ticker}: 오늘 매매 이미 완료됨 {price_info}")
 
 
 # ============================================================
@@ -1156,10 +1299,11 @@ def main():
 
 
 def git_push_logs():
-    """C:\\TradingBot이 Git 저장소로 초기화되어 있으면, 로그/주문 폴더만 자동으로
-    커밋+push함. Git이 설정 안 되어 있으면 조용히 건너뜀(에러 아님).
+    """C:\\TradingBot이 Git 저장소로 초기화되어 있으면, 로그/주문 폴더 + 코드 파일(.py)을
+    자동으로 커밋+push함. Git이 설정 안 되어 있으면 조용히 건너뜀(에러 아님).
     ⚠️ .gitignore로 걸러지는 파일(kis_config.json 등 민감정보)은 애초에 git add 대상에서
-    아예 제외하고, 안전하게 로그성 폴더만 명시적으로 add함."""
+    아예 제외하고, 안전하게 로그성 폴더 + 알려진 스크립트 파일만 명시적으로 add함.
+    (사람이 새 코드를 이 폴더에 직접 덮어써주기만 하면, 그 다음 커밋+push는 자동으로 처리됨)"""
     git_dir = os.path.join(BASE_DIR, ".git")
     if not os.path.isdir(git_dir):
         return  # Git 저장소가 아니면 아무 것도 안 함 (기존 사용자에게 영향 없도록)
@@ -1167,23 +1311,32 @@ def git_push_logs():
     import subprocess
     safe_paths = ["Log", "Order", "ScreeningLog", "ParamsLog"]
     existing_paths = [p for p in safe_paths if os.path.isdir(os.path.join(BASE_DIR, p))]
+
+    # 코드 파일들도 존재하면 같이 add 대상에 포함 (없는 파일은 조용히 건너뜀)
+    known_scripts = ["auto_trading_bot.py", "kakao_watchdog.py", "kakao_setup.py",
+                      "kakao_test.py", "kis_order_test.py", "kis_us_order_test.py"]
+    existing_scripts = [s for s in known_scripts if os.path.isfile(os.path.join(BASE_DIR, s))]
+    existing_paths += existing_scripts
+
     if not existing_paths:
         return
 
-    try:
-        subprocess.run(["git", "add"] + existing_paths, cwd=BASE_DIR, timeout=30,
-                        capture_output=True, text=True)
+    # ⚠️ Windows 콘솔 기본 인코딩(CP949)이 Git의 UTF-8 출력을 못 읽어서 나던
+    # UnicodeDecodeError 방지를 위해 encoding/errors를 명시적으로 지정함
+    run_kwargs = dict(cwd=BASE_DIR, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
 
-        commit_msg = f"자동 로그 업데이트 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        commit_res = subprocess.run(["git", "commit", "-m", commit_msg], cwd=BASE_DIR,
-                                     timeout=30, capture_output=True, text=True)
+    try:
+        subprocess.run(["git", "add"] + existing_paths, timeout=30, **run_kwargs)
+
+        commit_msg = f"자동 커밋 (로그/코드) {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        commit_res = subprocess.run(["git", "commit", "-m", commit_msg], timeout=30, **run_kwargs)
         # 변경사항이 없으면 commit이 실패하는데(정상), 그 경우는 조용히 넘어감
         if commit_res.returncode != 0 and "nothing to commit" not in commit_res.stdout.lower():
             if commit_res.stdout.strip():
                 print(f"  [Git] 커밋 결과: {commit_res.stdout.strip()[:200]}")
 
-        push_res = subprocess.run(["git", "push"], cwd=BASE_DIR, timeout=60,
-                                   capture_output=True, text=True)
+        push_res = subprocess.run(["git", "push"], timeout=60, **run_kwargs)
         if push_res.returncode == 0:
             print("  [Git] 로그를 원격 저장소에 push 완료")
         else:
@@ -1221,6 +1374,8 @@ SCREEN_MAX_PANIC_DAY_RATIO = 0.15
 SCREEN_MIN_WON_VOLUME_KRW = 3_000_000_000
 SCREEN_MIN_MARKET_CAP_USD = 500_000_000
 SCREEN_MIN_PRICE_USD = 5.0
+SCREEN_MAX_PRICE_USD = 200.0   # 데이트레이딩엔 너무 비싼 종목(호가단위/스프레드 불리)은 제외
+SCREEN_MAX_PRICE_KRW = 300000  # 국내도 동일한 취지로 상한 적용
 SCREEN_MIN_DOLLAR_VOLUME_USD = 5_000_000
 SCREEN_US_TOP_N_CANDIDATES = 15
 SCREEN_US_LOOKBACK_DAYS = 60
@@ -1334,7 +1489,16 @@ def screen_score_kr(df, period_div_code="D"):
         vol_min, vol_max, panic_threshold, max_panic_ratio = SCREEN_IDEAL_VOL_MIN, SCREEN_IDEAL_VOL_MAX, 15.0, SCREEN_MAX_PANIC_DAY_RATIO
 
     df = df.copy()
-    df["daily_range_pct"] = (df["high"] - df["low"]) / df["open"] * 100
+    # ⚠️ 단순 (고가-저가)/시가 대신, 전일 종가 대비 갭까지 반영하는 진짜 ATR(Average True Range) 방식으로 계산.
+    # 갭상승/갭하락이 있는 날은 (고가-저가)만으론 그날의 진짜 변동폭을 과소평가하게 됨.
+    df["prev_close"] = df["close"].shift(1)
+    tr1 = df["high"] - df["low"]
+    tr2 = (df["high"] - df["prev_close"]).abs()
+    tr3 = (df["low"] - df["prev_close"]).abs()
+    df["true_range"] = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    df["true_range"] = df["true_range"].fillna(tr1)  # 첫 행은 전일종가가 없어 고가-저가로 대체
+    df["daily_range_pct"] = df["true_range"] / df["open"] * 100
+
     avg_range = df["daily_range_pct"].mean()
     panic_day_ratio = (df["daily_range_pct"] > panic_threshold).sum() / len(df)
     df["won_volume"] = df["close"] * df["volume"]
@@ -1385,10 +1549,25 @@ def screen_score_kr(df, period_div_code="D"):
             score += 10
             reasons.append("NR7(최근7일중 최저변동성, 돌파 임박 가능성)")
 
+    # RVOL(상대거래량) 가산점: 가장 최근 거래일의 거래량이 그 이전 평균 대비 2배 이상이면
+    # "오늘 유독 관심이 몰린 종목"으로 판단해서 가산점을 줌 (데이트레이더들이 흔히 쓰는 기준)
+    rvol = None
+    is_high_rvol = False
+    if len(df) >= 11:
+        recent_volume = df["volume"].iloc[-1]
+        baseline_volume = df["volume"].iloc[-11:-1].mean()  # 최근 1일 제외한 이전 10일 평균
+        if baseline_volume > 0:
+            rvol = recent_volume / baseline_volume
+            if rvol >= 2.0:
+                is_high_rvol = True
+                score += 10
+                reasons.append(f"RVOL 높음(평소 대비 {rvol:.1f}배 거래량)")
+
     score = min(round(score, 1), 100.0)
 
     return {"market": "KR", "score": score, "avg_daily_range_pct": round(avg_range, 2),
             "panic_day_ratio_pct": round(panic_day_ratio * 100, 1), "is_nr7": is_nr7,
+            "is_high_rvol": is_high_rvol, "rvol": round(rvol, 2) if rvol is not None else None,
             "avg_won_volume": round(avg_won_volume, 0), "trend_corr": round(trend_corr, 3),
             "last_price": round(last_price, 0), "reasons": "; ".join(reasons)}
 
@@ -1484,7 +1663,15 @@ def screen_analyze_us_ticker(ticker: str):
     if len(df) < 10:
         return {"ticker": ticker, "market": "US", "error": f"유효 데이터 부족 (결측치 제거 후 {len(df)}행만 남음)"}
 
-    df["daily_range_pct"] = (df["High"] - df["Low"]) / df["Open"] * 100
+    # ⚠️ 국내와 동일하게, 단순 (고가-저가)가 아니라 전일 종가 대비 갭까지 반영하는 ATR 방식으로 계산
+    df["prev_close"] = df["Close"].shift(1)
+    tr1 = df["High"] - df["Low"]
+    tr2 = (df["High"] - df["prev_close"]).abs()
+    tr3 = (df["Low"] - df["prev_close"]).abs()
+    df["true_range"] = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    df["true_range"] = df["true_range"].fillna(tr1)
+    df["daily_range_pct"] = df["true_range"] / df["Open"] * 100
+
     avg_range = df["daily_range_pct"].mean()
     panic_day_ratio = (df["daily_range_pct"] > 15).sum() / len(df)
     df["dollar_volume"] = df["Close"] * df["Volume"]
@@ -1537,15 +1724,68 @@ def screen_analyze_us_ticker(ticker: str):
             score += 10
             reasons.append("NR7(최근7일중 최저변동성, 돌파 임박 가능성)")
 
+    # RVOL(상대거래량) 가산점 (국내와 동일 로직)
+    rvol = None
+    is_high_rvol = False
+    if len(df) >= 11:
+        recent_volume = df["Volume"].iloc[-1]
+        baseline_volume = df["Volume"].iloc[-11:-1].mean()
+        if baseline_volume > 0:
+            rvol = recent_volume / baseline_volume
+            if rvol >= 2.0:
+                is_high_rvol = True
+                score += 10
+                reasons.append(f"RVOL 높음(평소 대비 {rvol:.1f}배 거래량)")
+
     score = min(round(score, 1), 100.0)
 
     return {"ticker": ticker, "market": "US", "score": score,
             "avg_daily_range_pct": round(avg_range, 2), "panic_day_ratio_pct": round(panic_day_ratio * 100, 1),
-            "is_nr7": is_nr7, "avg_won_volume": round(avg_dollar_volume, 0), "trend_corr": round(trend_corr, 3),
+            "is_nr7": is_nr7, "is_high_rvol": is_high_rvol, "rvol": round(rvol, 2) if rvol is not None else None,
+            "avg_won_volume": round(avg_dollar_volume, 0), "trend_corr": round(trend_corr, 3),
             "last_price": round(last_price, 2), "reasons": "; ".join(reasons)}
 
 
 def screen_write_watchlist(df_result, top_kr=5, top_us=5):
+    # 종목당 투입금액(CAPITAL_PER_TICKER_KRW)으로 1주도 못 사는 종목은 애초에 후보에서 제외.
+    # -> 순위표에서 그냥 빠지고, 다음 순위 종목이 자연스럽게 그 자리를 채우게 됨
+    # (매매 당일 "자금 부족"으로 기회를 날리는 것보다, 선정 단계에서 미리 걸러내는 게 안전함)
+    fx_rate = get_fx_rate_safe()  # 미국 종목 가격을 원화로 환산해서 비교하기 위함
+
+    def _is_affordable(row):
+        if row["market"] == "KR":
+            return row["last_price"] < CAPITAL_PER_TICKER_KRW
+        else:
+            return row["last_price"] * fx_rate < CAPITAL_PER_TICKER_KRW
+
+    def _is_within_price_ceiling(row):
+        # 너무 비싼 종목은 호가단위/스프레드 측면에서 데이트레이딩에 불리하다는
+        # 일반적인 경험칙에 따라 별도 상한도 적용 (투입금액 기준과는 별개의 필터)
+        if row["market"] == "KR":
+            return row["last_price"] <= SCREEN_MAX_PRICE_KRW
+        else:
+            return row["last_price"] <= SCREEN_MAX_PRICE_USD
+
+    affordable_mask = df_result.apply(_is_affordable, axis=1)
+    excluded = df_result[~affordable_mask]
+    if len(excluded) > 0:
+        print(f"[알림] 종목당 투입금액({CAPITAL_PER_TICKER_KRW:,.0f}원)으로 1주도 살 수 없는 "
+              f"{len(excluded)}개 종목을 후보에서 제외합니다:")
+        for _, r in excluded.iterrows():
+            price_str = f"{r['last_price']:,.0f}원" if r["market"] == "KR" else f"${r['last_price']:,.2f}"
+            print(f"  ({r['market']}) {r['ticker']}: {price_str}")
+    df_result = df_result[affordable_mask]
+
+    price_ceiling_mask = df_result.apply(_is_within_price_ceiling, axis=1)
+    excluded_ceiling = df_result[~price_ceiling_mask]
+    if len(excluded_ceiling) > 0:
+        print(f"[알림] 가격 상한(국내 {SCREEN_MAX_PRICE_KRW:,.0f}원 / 미국 ${SCREEN_MAX_PRICE_USD:.0f}) 초과로 "
+              f"{len(excluded_ceiling)}개 종목을 후보에서 제외합니다:")
+        for _, r in excluded_ceiling.iterrows():
+            price_str = f"{r['last_price']:,.0f}원" if r["market"] == "KR" else f"${r['last_price']:,.2f}"
+            print(f"  ({r['market']}) {r['ticker']}: {price_str}")
+    df_result = df_result[price_ceiling_mask]
+
     kr_rows = df_result[df_result["market"] == "KR"].head(top_kr)
     us_rows = df_result[df_result["market"] == "US"].head(top_us)
     watchlist = {
@@ -1696,15 +1936,11 @@ def run_screening_mode():
 # ============================================================
 # 주간 재최적화 (--optimize)
 # ============================================================
-def opt_calc_vwap(df):
-    return calc_vwap(df)
-
-
 def opt_simulate_day(day_df, orb_bars, stop_pct, tp_trigger_pct, tp_max_pct):
     df = day_df.sort_values("datetime").reset_index(drop=True)
     if len(df) < orb_bars + 1:
         return None
-    df["vwap"] = opt_calc_vwap(df)
+    df["vwap"] = calc_vwap(df)
     orb_high = df.iloc[:orb_bars]["high"].max()
     rest = df.iloc[orb_bars:].reset_index(drop=True)
     entry_idx = None
