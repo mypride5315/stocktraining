@@ -1,0 +1,2 @@
+﻿timestamp,action,ticker,price,shares,reason,reason_kr,extra,mode
+2026-08-12T09:15:17.608190,BUY,0167A0,16010.0,31,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
