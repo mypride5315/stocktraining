@@ -2630,3 +2630,48 @@ C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit f
  실행 종료: 2026-08-13 11:05:56.815302
 ============================================================
 
+
+============================================================
+ 실행 시각: 2026-08-13 11:10:01.655644
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-13 11:10:02.205210
+============================================================
+적용 환율: 1418.1원/달러
+
+[국내장 시간대 - 국내 5종목 처리]
+
+[229200]
+C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  229200: 대기 중 (현재가 14,860, 박스상단 14,925, VWAP 14,740) - 박스상단 미돌파
+
+[0167A0]
+C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  0167A0: 오늘 매매 이미 완료됨 (현재가 17,615, 박스상단 17,795, VWAP 17,679)
+
+[114800]
+C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  114800: 대기 중 (현재가 1,036, 박스상단 1,040, VWAP 1,030) - 박스상단 미돌파
+
+[251340]
+C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  251340: 대기 중 (현재가 2,295, 박스상단 2,345, VWAP 2,310) - 박스상단 미돌파, VWAP 아래
+
+[379800]
+C:\TradingBot\auto_trading_bot.py:1132: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  379800: 대기 중 (현재가 24,655, 박스상단 24,715, VWAP 24,659) - 박스상단 미돌파, VWAP 아래
+
+오늘 국내 누적손익: -5,460원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-13 11:10:49.999309
+============================================================
+
