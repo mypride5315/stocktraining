@@ -4,10 +4,12 @@
 Key.txt
 kis_config.json
 kis_token_cache.json
+kis_token_cache_TEST.json
 kakao_token.json
 user_config.json
 alert_state.json
 files/user_config.json
+nh_config.json
 
 # ============================================================
 # 매일 생성되는 상태 파일 (원격에서 로그 확인엔 불필요, 계속 바뀌기만 함)

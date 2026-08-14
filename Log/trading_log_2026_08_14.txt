@@ -7336,3 +7336,18 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
   last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
   [PATH] 데이터 9행 수신 (세션: 2026-08-14)
   PATH: 대기 중 (현재가 $16.07, 박스상단 $15.44, VWAP $16.26) - VWAP 아래
+
+[INTC]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [INTC] 데이터 10행 수신 (세션: 2026-08-14)
+  INTC: 보유 중 (진입가 $106.23, 현재 $105.36, 박스상단 $106.17, VWAP $105.19, 손절가 $104.64)
+
+오늘 국내 누적손익: -11,240원
+오늘 미국 누적손익(원화환산): -8,131원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-14 23:15:21.684928
+============================================================
+
