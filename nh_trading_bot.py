@@ -34,6 +34,7 @@ Order/order_log_NH_YYYY_MM_DD.csv(실제 체결된 주문만)에 KIS 봇과 같�
 
 import os
 import json
+import requests
 from datetime import datetime, timedelta, time as dtime
 import pandas as pd
 import numpy as np
@@ -45,6 +46,8 @@ WATCHLIST_PATH = os.path.join(BASE_DIR, "watchlist.json")
 # KIS 봇(auto_trading_bot.py)과 같은 Log/, Order/ 폴더를 그대로 씀 - 파일명에만 NH를 붙여서 구분
 LOG_DIR = os.path.join(BASE_DIR, "Log")
 ORDER_DIR = os.path.join(BASE_DIR, "Order")
+# 카카오톡 "나에게 보내기" 알림도 KIS 봇과 같은 개인 토큰 파일을 공유해서 씀 (계정 하나라 재설정 불필요)
+KAKAO_TOKEN_PATH = os.path.join(BASE_DIR, "kakao_token.json")
 
 MOCK_BASE_URL = "https://moapi.nhplug.com:8443"
 REAL_BASE_URL = "https://api.nhplug.com:8443"
@@ -94,15 +97,85 @@ def _setup_nh_logging():
         print(f"[경고] 로그 파일 연결 실패({e}), 화면 출력만 진행합니다.")
 
 
+def _kakao_refresh_access_token(token_data):
+    """-- auto_trading_bot.py의 동일 함수를 그대로 가져옴(순수 인프라 코드라 로직 변형 없음) --
+    kakao_token.json은 KIS 봇과 공유하는 개인 계정 토큰이라 이 로직도 그대로 재사용함."""
+    url = "https://kauth.kakao.com/oauth/token"
+    data = {
+        "grant_type": "refresh_token",
+        "client_id": token_data["rest_api_key"],
+        "refresh_token": token_data["refresh_token"],
+    }
+    res = requests.post(url, data=data, timeout=10)
+    if res.status_code != 200:
+        return None
+    result = res.json()
+    token_data["access_token"] = result["access_token"]
+    expires_in = result.get("expires_in", 21599)
+    token_data["access_token_expire_at"] = (datetime.now() + timedelta(seconds=expires_in)).isoformat()
+    with open(KAKAO_TOKEN_PATH, "w", encoding="utf-8") as f:
+        json.dump(token_data, f, ensure_ascii=False, indent=2)
+    return token_data
+
+
+def send_kakao_message(text: str):
+    """체결 알림을 카카오톡(나에게 보내기)으로 전송. 실패해도 절대 예외를 던지지 않음.
+    -- auto_trading_bot.py의 send_kakao_message()와 동일(공유 개인 토큰, 순수 인프라 코드) --
+    kakao_token.json이 없으면(카카오 연동 안 한 경우) 조용히 건너뜀(에러 아님)."""
+    if not os.path.exists(KAKAO_TOKEN_PATH):
+        return
+    try:
+        with open(KAKAO_TOKEN_PATH, "r", encoding="utf-8") as f:
+            token_data = json.load(f)
+
+        expire_at = datetime.fromisoformat(token_data["access_token_expire_at"])
+        if datetime.now() >= expire_at - timedelta(minutes=5):
+            refreshed = _kakao_refresh_access_token(token_data)
+            if refreshed is None:
+                print("  [알림] 카카오 토큰 갱신 실패, 이번 알림은 건너뜁니다.")
+                return
+            token_data = refreshed
+
+        url = "https://kapi.kakao.com/v2/api/talk/memo/default/send"
+        headers = {"Authorization": f"Bearer {token_data['access_token']}"}
+        template = {
+            "object_type": "text",
+            "text": text,
+            "link": {"web_url": "https://developers.kakao.com", "mobile_web_url": "https://developers.kakao.com"},
+        }
+        res = requests.post(url, headers=headers, data={"template_object": json.dumps(template)}, timeout=10)
+        if res.status_code != 200:
+            print(f"  [알림] 카카오톡 전송 실패: {res.status_code} {res.text}")
+    except Exception as e:
+        print(f"  [알림] 카카오톡 전송 중 오류(무시하고 계속 진행): {e}")
+
+
+NH_REASON_LABELS_KR = {
+    "orb_vwap_breakout": "박스+VWAP 동시 돌파 매수",
+    "take_profit": "익절 (목표 수익 도달)",
+    "stop_loss": "손절 (손실 제한)",
+    "nh_order_test_diagnostic": "진단 스크립트(nh_order_test.py) 테스트 매수",
+}
+
+
 def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extra: str = ""):
-    """실제 체결된 주문을 Order/order_log_NH_YYYY_MM_DD.csv에 기록.
-    -- auto_trading_bot.py의 log_order() 구조를 참고함(그대로 복사 아님, 카카오알림 등은 제외) --
-    기록 실패가 매매 상태 처리를 막으면 안 되므로 절대 예외를 위로 던지지 않음"""
+    """실제 체결된 주문을 Order/order_log_NH_YYYY_MM_DD.csv에 기록 + 카카오톡 알림.
+    -- auto_trading_bot.py의 log_order() 구조를 참고함(그대로 복사 아님) --
+    기록/알림 실패가 매매 상태 처리를 막으면 안 되므로 절대 예외를 위로 던지지 않음"""
+    is_mock = True
+    try:
+        cfg = load_nh_config()
+        if cfg:
+            is_mock = bool(cfg.get("is_mock", True))
+    except Exception:
+        pass
+
     today_str = datetime.now().strftime("%Y_%m_%d")
     order_log_path = os.path.join(ORDER_DIR, f"order_log_NH_{today_str}.csv")
     row = pd.DataFrame([{
         "timestamp": datetime.now().isoformat(), "action": action, "ticker": ticker,
         "price": price, "shares": shares, "reason": reason, "extra": extra,
+        "mode": "MOCK" if is_mock else "REAL",
     }])
     try:
         os.makedirs(ORDER_DIR, exist_ok=True)
@@ -114,6 +187,24 @@ def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extr
         row.to_csv(order_log_path, index=False, encoding="utf-8-sig")
     except Exception as e:
         print(f"  [경고] {os.path.basename(order_log_path)} 기록 실패(무시하고 계속 진행): {e}")
+
+    mode_label = "모의" if is_mock else "실전"
+    action_label = {"BUY": "매수", "SELL": "매도"}.get(action, action)
+    reason_kr = NH_REASON_LABELS_KR.get(reason, reason)
+    msg = (f"[NH-{mode_label}] {action_label} 체결\n"
+           f"종목: {ticker}\n"
+           f"가격: {price:,.0f}원 x {shares}주\n"
+           f"사유: {reason_kr}")
+    if extra:
+        extra_display = extra
+        if extra.startswith("pnl="):
+            try:
+                val = float(extra.split("=", 1)[1])
+                extra_display = f"손익: {val:+,.0f}원"
+            except ValueError:
+                pass
+        msg += f"\n{extra_display}"
+    send_kakao_message(msg)
 
 
 def load_nh_config():
@@ -489,6 +580,19 @@ def save_nh_state(state: dict):
 
 def main():
     _setup_nh_logging()
+
+    # 워치독: 5분마다 반복 실행되는 스케줄러 특성상, 네트워크 호출이 멈추는 등
+    # 어떤 이유로든 제한시간 안에 안 끝나면 강제 종료해서 python.exe가 계속
+    # 쌓여 다음 트리거를 막는 사고를 방지함 (auto_trading_bot.py의 워치독 참고)
+    import threading
+    def _watchdog_force_exit():
+        print("\n[경고] 실행 시간이 240초를 초과해 강제 종료합니다. (멈춤 방지 안전장치)")
+        import sys
+        sys.stdout.flush()
+        os._exit(1)
+    _watchdog = threading.Timer(240, _watchdog_force_exit)
+    _watchdog.daemon = True
+    _watchdog.start()
 
     print("=" * 60)
     print(f" NH투자증권(나무Plug) ORB+VWAP 자동매매 - {datetime.now()}")
