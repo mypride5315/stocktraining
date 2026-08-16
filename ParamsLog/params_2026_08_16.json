@@ -1,0 +1,101 @@
+{
+  "generated_at": "2026-08-16T22:05:07.583408",
+  "default": {
+    "orb_bars": 6,
+    "stop_pct": 0.015,
+    "tp_trigger_pct": 0.01,
+    "tp_max_pct": 0.04
+  },
+  "per_ticker": {
+    "NU": {
+      "orb_bars": 3,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래10건, 총수익률3.66%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "PATH": {
+      "orb_bars": 6,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래14건, 총수익률16.34%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 30
+    },
+    "INTC": {
+      "orb_bars": 9,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래10건, 총수익률6.08%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 45
+    },
+    "NOK": {
+      "orb_bars": 3,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래9건, 총수익률3.29%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "ONDS": {
+      "orb_bars": 6,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래12건, 총수익률3.91%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 30
+    },
+    "005930": {
+      "orb_bars": 6,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.015,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래6건, 총수익률8.21%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 30
+    },
+    "114800": {
+      "orb_bars": 9,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래15건, 총수익률5.01%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 45
+    },
+    "229200": {
+      "orb_bars": 3,
+      "stop_pct": 0.015,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래13건, 총수익률4.07%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "251340": {
+      "orb_bars": 3,
+      "stop_pct": 0.02,
+      "tp_trigger_pct": 0.005,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래13건, 총수익률6.29%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 15
+    },
+    "379800": {
+      "orb_bars": 6,
+      "stop_pct": 0.01,
+      "tp_trigger_pct": 0.01,
+      "tp_max_pct": 0.02,
+      "note": "주간 재최적화 [안정성(꾸준함) 기준] (거래12건, 총수익률0.19%) - 신뢰도 양호(표본 21거래일)",
+      "sample_days": 21,
+      "orb_minutes": 30
+    }
+  }
+}
