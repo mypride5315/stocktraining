@@ -15,6 +15,7 @@ nh_config.json
 # 매일 생성되는 상태 파일 (원격에서 로그 확인엔 불필요, 계속 바뀌기만 함)
 # ============================================================
 position_state.json
+nh_position_state.json
 watchlist.json
 strategy_params.json
 last_weekly_run.txt

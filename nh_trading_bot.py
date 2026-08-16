@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-NH투자증권(나무Plug) API 연동 - 개발 중 (KIS 봇과 완전히 별도)
+NH투자증권(나무Plug) API 연동 - ORB+VWAP 자동매매 (KIS 봇과 완전히 별도)
 =====================================================================
 ⚠️ 이 파일은 auto_trading_bot.py(KIS)와 전혀 무관한 별도의 병행 개발 파일입니다.
    기존 KIS 매매봇은 이 파일과 상관없이 그대로 계속 작동합니다.
 
-⚠️ 현재 상태: "시세 조회"까지만 구현됨. 주문(매수/매도)은 아직 미구현.
-   -> nhplug-sdk 저장소의 snippets/ 폴더에서 주문 관련 예제를 찾아서
-      정확한 URL/파라미터를 확인한 뒤 이어서 구현할 예정.
+⚠️ 무인 스케줄(Windows 작업 스케줄러 등) 등록은 아직 하지 마세요.
+   fetch_today_minute_bars()가 실제 API 응답으로 검증된 적이 없습니다
+   (분봉 조회 스니펫이 SDK에 없어서 명세만 보고 구현함). 평일 정규장에
+   먼저 수동으로 한 번 돌려보고 정상 동작을 확인한 뒤에 등록하세요.
 
 [사전 준비 - 아직 안 하셨다면]
 1. https://www.nhplug.com/intro 에서 앱키/앱시크릿 발급 신청
@@ -18,20 +19,32 @@ NH투자증권(나무Plug) API 연동 - 개발 중 (KIS 봇과 완전히 별도)
 {
   "app_key": "발급받은_APP_KEY",
   "app_secret": "발급받은_APP_SECRET",
-  "is_mock": true
+  "account_no": "모의투자 계좌번호",
+  "is_mock": true,
+  "enable_auto_orders": false,
+  "capital_per_ticker_krw": 1000000,
+  "circuit_breaker_krw": 500000
 }
+※ enable_auto_orders를 true로 직접 바꾸기 전까지는, python nh_trading_bot.py를
+  실행해도 실제 주문은 절대 나가지 않고(dry_run 고정) 신호만 출력합니다.
 """
 
 import os
 import json
+from datetime import datetime, timedelta, time as dtime
 import pandas as pd
 import numpy as np
 
 BASE_DIR = r"C:\TradingBot"
 NH_CONFIG_PATH = os.path.join(BASE_DIR, "nh_config.json")
+NH_STATE_PATH = os.path.join(BASE_DIR, "nh_position_state.json")
+WATCHLIST_PATH = os.path.join(BASE_DIR, "watchlist.json")
 
 MOCK_BASE_URL = "https://moapi.nhplug.com:8443"
 REAL_BASE_URL = "https://api.nhplug.com:8443"
+
+MARKET_OPEN = dtime(9, 0)
+MARKET_CLOSE = dtime(15, 30)
 
 try:
     from nhplug import call
@@ -364,9 +377,58 @@ def process_ticker_nh(iem_cd: str, act_no: str, state: dict, capital_krw: int = 
         return {"ticker": iem_cd, "status": "error", "error": str(e)}
 
 
+def load_nh_watchlist() -> list:
+    """국내 종목코드 리스트 로드. watchlist.json(KIS 봇과 공유하는 종목 스크리닝 결과)이
+    있으면 그걸 재사용하고(나중에 KIS-NH 비교를 위해 같은 종목군으로 맞춤), 없으면
+    삼성전자 하나만 기본값으로 씀."""
+    if os.path.exists(WATCHLIST_PATH):
+        try:
+            with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+                wl = json.load(f)
+            tickers = list(wl.get("kr_tickers", {}).keys())
+            if tickers:
+                return tickers
+        except Exception as e:
+            print(f"[알림] watchlist.json 로드 실패({e}), 기본 종목으로 대체합니다.")
+    return ["005930"]
+
+
+def load_nh_state(tickers: list) -> dict:
+    """포지션 상태 로드 + 날짜가 바뀌면 일일 카운터만 리셋(청산 안 된 포지션은 유지).
+    -- auto_trading_bot.py의 load_state() 구조를 참고함(그대로 복사 아님) --"""
+    if os.path.exists(NH_STATE_PATH):
+        with open(NH_STATE_PATH, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    else:
+        state = {}
+
+    today_str = datetime.now().date().isoformat()
+    if state.get("date") != today_str:
+        old_positions = state.get("positions", {})
+        state["date"] = today_str
+        state["daily_pnl"] = 0
+        state["positions"] = {}
+        for t in tickers:
+            prev = old_positions.get(t, {})
+            if prev.get("in_position"):
+                state["positions"][t] = prev  # 청산 안 된 포지션은 유지, 다음 청산신호에 맡김
+            else:
+                state["positions"][t] = {"in_position": False, "day_traded": False}
+
+    for t in tickers:
+        state["positions"].setdefault(t, {"in_position": False, "day_traded": False})
+    state.setdefault("daily_pnl", 0)
+    return state
+
+
+def save_nh_state(state: dict):
+    with open(NH_STATE_PATH, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+
+
 def main():
     print("=" * 60)
-    print(" NH투자증권(나무Plug) 연동 테스트 - 개발 중")
+    print(f" NH투자증권(나무Plug) ORB+VWAP 자동매매 - {datetime.now()}")
     print("=" * 60)
 
     if not NHPLUG_AVAILABLE:
@@ -375,12 +437,14 @@ def main():
     cfg = load_nh_config()
     if cfg is None:
         return
-
     if cfg.get("app_key", "").startswith("여기에"):
         print("[알림] nh_config.json에 아직 실제 앱키/시크릿을 안 넣으셨습니다.")
         return
+    account_no = cfg.get("account_no", "")
+    if not account_no or account_no.startswith("여기에"):
+        print("[설정 오류] nh_config.json에 account_no가 설정되지 않았습니다.")
+        return
 
-    # nhplug SDK는 환경변수로 앱키/시크릿/모의투자 전환을 관리함
     os.environ["NHPLUG_APP_KEY"] = cfg["app_key"]
     os.environ["NHPLUG_APP_SECRET"] = cfg["app_secret"]
     if cfg.get("is_mock", True):
@@ -389,18 +453,53 @@ def main():
     else:
         print("[모드] ⚠️ 실전(운영) 서버로 접속합니다.")
 
-    print("\n삼성전자(005930) 현재가 조회 테스트...")
-    result = get_current_price("005930")
-    print(f"결과: {result}")
-
-    print("\n매수 주문 형식 확인(dry_run, 실제 전송 안 함)...")
-    account_no = cfg.get("account_no", "")
-    if account_no and not account_no.startswith("여기에"):
-        dry_result = order_cash_buy(account_no, "005930", 1, orr_pr=70000, dry_run=True)
-        print(f"주문 payload 확인: {dry_result}")
-        print("실제로 주문을 넣고 싶으면, order_cash_buy(...) 호출 시 dry_run=False로 바꿔서 별도 스크립트로 실행하세요.")
+    # 이중 안전장치: enable_auto_orders를 사람이 직접 true로 바꾸기 전까지는
+    # 신호가 떠도 절대 실제 주문을 내지 않음(dry_run 고정) - auto_trading_bot.py의
+    # IS_MOCK + CONFIRM_LIVE_TRADING 이중 게이트 구조를 참고함.
+    enable_auto_orders = bool(cfg.get("enable_auto_orders", False))
+    dry_run = not enable_auto_orders
+    if dry_run:
+        print("[안전장치] enable_auto_orders=false 라 신호만 평가하고 실제 주문은 내지 않습니다.")
     else:
-        print("계좌번호가 아직 설정 안 되어 매수 테스트는 건너뜁니다.")
+        print("[안전장치 해제됨] enable_auto_orders=true - 신호 발생 시 실제로 주문이 나갑니다.")
+
+    capital_per_ticker = int(cfg.get("capital_per_ticker_krw", 1_000_000))
+    circuit_breaker = int(cfg.get("circuit_breaker_krw", 500_000))
+
+    now = datetime.now()
+    is_weekday = now.weekday() < 5
+    in_market_hours = MARKET_OPEN <= now.time() <= MARKET_CLOSE
+    if not (is_weekday and in_market_hours):
+        print(f"\n국내 정규장 시간이 아닙니다({MARKET_OPEN}~{MARKET_CLOSE}, 평일). 종료합니다.")
+        return
+
+    tickers = load_nh_watchlist()
+    state = load_nh_state(tickers)
+
+    print(f"\n[국내장 시간대 - {len(tickers)}종목 처리]")
+    for ticker in tickers:
+        if state["daily_pnl"] <= -circuit_breaker:
+            print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 {state['daily_pnl']:,.0f}원) - 신규 진입 중단")
+            break
+        print(f"\n[{ticker}]")
+        try:
+            r = process_ticker_nh(ticker, account_no, state["positions"], capital_krw=capital_per_ticker,
+                                   dry_run=dry_run)
+            print(f"  상태: {r.get('status')}"
+                  + (f" | 박스상단 {r['orb_high']:,.0f} VWAP {r['vwap']:,.0f} 현재가 {r['close']:,.0f}"
+                     if "orb_high" in r else ""))
+            if r.get("order_result"):
+                print(f"  주문결과: {r['order_result']}")
+            if not dry_run and str(r.get("status", "")).startswith("exit_signal"):
+                pos = state["positions"][ticker]
+                pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
+                state["daily_pnl"] += pnl
+                print(f"  손익: {pnl:+,.0f}원")
+        except Exception as e:
+            print(f"  [오류] {e}")
+
+    save_nh_state(state)
+    print(f"\n오늘 NH 누적손익: {state['daily_pnl']:+,.0f}원")
 
 
 if __name__ == "__main__":
