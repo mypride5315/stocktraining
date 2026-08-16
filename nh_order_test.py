@@ -35,7 +35,7 @@ def main():
     os.environ["NHPLUG_APP_SECRET"] = cfg["app_secret"]
     os.environ["NHPLUG_BASE_URL"] = MOCK_BASE_URL
 
-    from nh_trading_bot import get_balance, order_cash_buy
+    from nh_trading_bot import get_balance, order_cash_buy, log_order_nh
 
     print("=" * 60)
     print(f" NH 실제 주문 체결 테스트 [모의투자] 계좌={account_no}")
@@ -57,6 +57,7 @@ def main():
     orr_no = result.get("Output_0", {}).get("orr_no") if isinstance(result, dict) else None
     if orr_no:
         print(f"\n  -> 주문번호(orr_no)={orr_no} 발급됨. 실제로 주문이 접수된 것으로 보입니다.")
+        log_order_nh("BUY", ticker, price, qty, "nh_order_test_diagnostic", extra=f"orr_no={orr_no}")
     else:
         print("\n  -> 주문번호(orr_no)가 없습니다. 응답 전체를 확인해서 rsp_cd/rsp_msg를 점검하세요.")
 

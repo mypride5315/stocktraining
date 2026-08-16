@@ -5,10 +5,13 @@ NH투자증권(나무Plug) API 연동 - ORB+VWAP 자동매매 (KIS 봇과 완전
 ⚠️ 이 파일은 auto_trading_bot.py(KIS)와 전혀 무관한 별도의 병행 개발 파일입니다.
    기존 KIS 매매봇은 이 파일과 상관없이 그대로 계속 작동합니다.
 
-⚠️ 무인 스케줄(Windows 작업 스케줄러 등) 등록은 아직 하지 마세요.
-   fetch_today_minute_bars()가 실제 API 응답으로 검증된 적이 없습니다
-   (분봉 조회 스니펫이 SDK에 없어서 명세만 보고 구현함). 평일 정규장에
-   먼저 수동으로 한 번 돌려보고 정상 동작을 확인한 뒤에 등록하세요.
+⚠️ fetch_today_minute_bars()가 아직 실제 API 응답으로 검증된 적이 없습니다
+   (분봉 조회 스니펫이 SDK에 없어서 명세만 보고 구현함). 평일 정규장에 결과를
+   먼저 확인하기 전까지는 nh_config.json의 enable_auto_orders를 true로 켜지 마세요.
+
+실행 결과는 Log/trading_log_NH_YYYY_MM_DD.txt(화면 출력 전체)와
+Order/order_log_NH_YYYY_MM_DD.csv(실제 체결된 주문만)에 KIS 봇과 같은 폴더에
+남습니다(파일명에 NH가 붙어 구분됨).
 
 [사전 준비 - 아직 안 하셨다면]
 1. https://www.nhplug.com/intro 에서 앱키/앱시크릿 발급 신청
@@ -39,6 +42,9 @@ BASE_DIR = r"C:\TradingBot"
 NH_CONFIG_PATH = os.path.join(BASE_DIR, "nh_config.json")
 NH_STATE_PATH = os.path.join(BASE_DIR, "nh_position_state.json")
 WATCHLIST_PATH = os.path.join(BASE_DIR, "watchlist.json")
+# KIS 봇(auto_trading_bot.py)과 같은 Log/, Order/ 폴더를 그대로 씀 - 파일명에만 NH를 붙여서 구분
+LOG_DIR = os.path.join(BASE_DIR, "Log")
+ORDER_DIR = os.path.join(BASE_DIR, "Order")
 
 MOCK_BASE_URL = "https://moapi.nhplug.com:8443"
 REAL_BASE_URL = "https://api.nhplug.com:8443"
@@ -53,6 +59,61 @@ except ImportError:
     NHPLUG_AVAILABLE = False
     print("[알림] nhplug 패키지가 설치되어 있지 않습니다.")
     print("       pip install nhplug --break-system-packages 로 설치해주세요.")
+
+
+class TeeOutput:
+    """print() 출력을 화면과 로그 파일에 동시에 씀 (auto_trading_bot.py의 TeeOutput과 동일한 방식)"""
+    def __init__(self, filepath):
+        import sys
+        self.terminal = sys.stdout
+        self.log = open(filepath, "a", encoding="utf-8")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+
+def _setup_nh_logging():
+    """화면 출력을 Log/trading_log_NH_YYYY_MM_DD.txt에도 남김.
+    -- main()에서만 호출함(import 시점엔 안 함) --
+    nh_strategy_test.py/nh_order_test.py처럼 이 모듈을 라이브러리로만 가져다 쓰는
+    스크립트까지 로그 파일이 생기면 혼란스러워서, 실제 봇 진입점(main)에서만 켬."""
+    import sys
+    os.makedirs(LOG_DIR, exist_ok=True)
+    today_str = datetime.now().strftime("%Y_%m_%d")
+    log_path = os.path.join(LOG_DIR, f"trading_log_NH_{today_str}.txt")
+    try:
+        sys.stdout = TeeOutput(log_path)
+        sys.stderr = sys.stdout
+    except Exception as e:
+        print(f"[경고] 로그 파일 연결 실패({e}), 화면 출력만 진행합니다.")
+
+
+def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extra: str = ""):
+    """실제 체결된 주문을 Order/order_log_NH_YYYY_MM_DD.csv에 기록.
+    -- auto_trading_bot.py의 log_order() 구조를 참고함(그대로 복사 아님, 카카오알림 등은 제외) --
+    기록 실패가 매매 상태 처리를 막으면 안 되므로 절대 예외를 위로 던지지 않음"""
+    today_str = datetime.now().strftime("%Y_%m_%d")
+    order_log_path = os.path.join(ORDER_DIR, f"order_log_NH_{today_str}.csv")
+    row = pd.DataFrame([{
+        "timestamp": datetime.now().isoformat(), "action": action, "ticker": ticker,
+        "price": price, "shares": shares, "reason": reason, "extra": extra,
+    }])
+    try:
+        os.makedirs(ORDER_DIR, exist_ok=True)
+        if os.path.exists(order_log_path):
+            # dtype=str로 안 박으면 "005930" 같은 종목코드가 숫자로 오인식되어
+            # 앞자리 0이 사라짐(예: 5930으로 저장) - pandas의 자동 타입추론 함정
+            existing = pd.read_csv(order_log_path, dtype={"ticker": str})
+            row = pd.concat([existing, row], ignore_index=True)
+        row.to_csv(order_log_path, index=False, encoding="utf-8-sig")
+    except Exception as e:
+        print(f"  [경고] {os.path.basename(order_log_path)} 기록 실패(무시하고 계속 진행): {e}")
 
 
 def load_nh_config():
@@ -427,6 +488,8 @@ def save_nh_state(state: dict):
 
 
 def main():
+    _setup_nh_logging()
+
     print("=" * 60)
     print(f" NH투자증권(나무Plug) ORB+VWAP 자동매매 - {datetime.now()}")
     print("=" * 60)
@@ -490,10 +553,17 @@ def main():
                      if "orb_high" in r else ""))
             if r.get("order_result"):
                 print(f"  주문결과: {r['order_result']}")
-            if not dry_run and str(r.get("status", "")).startswith("exit_signal"):
+
+            status = str(r.get("status", ""))
+            if not dry_run and status == "entry_signal":
+                pos = state["positions"][ticker]
+                log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout")
+            elif not dry_run and status.startswith("exit_signal"):
                 pos = state["positions"][ticker]
                 pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
                 state["daily_pnl"] += pnl
+                reason = status.split(":", 1)[1] if ":" in status else status
+                log_order_nh("SELL", ticker, r["close"], pos["shares"], reason, extra=f"pnl={pnl:.0f}")
                 print(f"  손익: {pnl:+,.0f}원")
         except Exception as e:
             print(f"  [오류] {e}")
