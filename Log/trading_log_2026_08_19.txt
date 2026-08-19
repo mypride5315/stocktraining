@@ -985,3 +985,52 @@ $NU: possibly delisted; no price data found  (period=2d)
 ['NU']: possibly delisted; no price data found  (period=2d)
   [NU] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
   NU: 데이터 부족 (세션 초반이거나 휴장)
+
+[PATH]
+$PATH: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['PATH']: possibly delisted; no price data found  (period=2d)
+  [PATH] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  PATH: 데이터 부족 (세션 초반이거나 휴장)
+
+[INTC]
+$INTC: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['INTC']: possibly delisted; no price data found  (period=2d)
+  [INTC] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  INTC: 데이터 부족 (세션 초반이거나 휴장)
+
+[NOK]
+$NOK: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['NOK']: possibly delisted; no price data found  (period=2d)
+  [NOK] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  NOK: 데이터 부족 (세션 초반이거나 휴장)
+
+[ONDS]
+$ONDS: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['ONDS']: possibly delisted; no price data found  (period=2d)
+  [ONDS] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  ONDS: 데이터 부족 (세션 초반이거나 휴장)
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] push 실패(무시하고 계속 진행): ssh: Could not resolve hostname github.com: Name or service not known
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+ 실행 종료: 2026-08-20 00:01:17.517402
+============================================================
+
+
+============================================================
+ 실행 시각: 2026-08-20 03:21:22.442113
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
