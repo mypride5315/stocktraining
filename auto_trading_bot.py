@@ -104,6 +104,7 @@ try:
     import glob
     import time as time_module
     from datetime import datetime, time, date, timedelta
+    from zoneinfo import ZoneInfo
     import pandas as pd
     import numpy as np
     import requests
@@ -296,6 +297,19 @@ TICKERS, US_TICKERS = load_watchlist(verbose=_SHOW_SESSION_START_LOG)
 
 US_MARKET_OPEN_ET = time(9, 30)   # 미국 동부시간 정규장 개장
 US_FORCE_CLOSE_ET = time(15, 50)  # 정규장 마감 10분 전 강제청산
+
+
+def get_us_market_status():
+    """뉴욕 현지시각을 zoneinfo로 직접 계산해서 미국 정규장 상태를 판단.
+    기존의 '한국시간 22:00~06:00' 같은 고정 근사 윈도우는 서머타임 전환 시
+    실제 개장(22:30 KST, EDT 기준)보다 먼저 '장중'으로 오판해서 전날 마감 데이터를
+    가져오는 원인이 됐음(2026-08-19 로그에서 확인된 버그). 이제 서머타임을
+    하드코딩 없이 자동으로 반영함.
+    반환값: (정규장열림여부, 뉴욕현재시각(time), 뉴욕현재일시(datetime))"""
+    now_et_dt = datetime.now(ZoneInfo("America/New_York"))
+    is_weekday_et = now_et_dt.weekday() < 5
+    is_open = is_weekday_et and (US_MARKET_OPEN_ET <= now_et_dt.time() <= time(16, 0))
+    return is_open, now_et_dt.time(), now_et_dt
 
 # 전략 파라미터 (기본값 - strategy_params.json이 없을 때 사용됨)
 _DEFAULT_ORB_MINUTES = 30
@@ -970,7 +984,10 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
 
     df["vwap"] = calc_vwap(df)
     latest = df.iloc[-1]
-    latest_et_time = latest["datetime"].time()  # 미국 종목 데이터는 원본(미국 동부시간) 그대로 유지됨
+    _, latest_et_time, _ = get_us_market_status()  # 데이터의 마지막 행이 아니라 실제 현재 뉴욕시각을 씀
+    # (예전엔 latest["datetime"].time()으로 데이터의 마지막 봉 시각을 썼는데, 프리마켓처럼
+    #  오늘 데이터가 아직 없어 전날 마감 데이터가 마지막 행으로 오면 "지금이 장마감"으로
+    #  오판하는 버그가 있었음 - 2026-08-19 로그로 확인됨)
     capital_usd = CAPITAL_PER_TICKER_KRW / state.get("fx_rate", 1350)
 
     if not pos["in_position"] and not pos["day_traded"]:
@@ -1264,8 +1281,10 @@ def main():
     # 시간대에 따라 국내장/미국장 자동 판별
     is_weekday = now.weekday() < 5
     kr_market_hours = time(9, 0) <= now.time() <= time(15, 30)
-    # 미국장(한국시간 기준, 서머타임 포함 대략 22:00~06:00)
-    us_market_hours = now.time() >= time(22, 0) or now.time() <= time(6, 0)
+    # 미국장 - zoneinfo로 뉴욕 현지시각을 직접 계산해서 서머타임을 정확히 반영함.
+    # (예전엔 '한국시간 22:00~06:00' 고정 근사치를 썼는데, 이게 실제 개장(서머타임 땐 22:30 KST)보다
+    #  먼저 '장중'으로 오판해서 전날 마감 데이터를 가져오는 버그의 원인이었음 - 2026-08-19 로그로 확인됨)
+    us_market_hours, us_now_et_time, us_now_et_dt = get_us_market_status()
 
     if is_weekday and kr_market_hours:
         print(f"\n[국내장 시간대 - 국내 {len(TICKERS)}종목 처리]")
@@ -1277,7 +1296,7 @@ def main():
                 print(f"  [오류] {e}")
 
     if us_market_hours:
-        print(f"\n[미국장 시간대 - 미국 {len(US_TICKERS)}종목 처리]")
+        print(f"\n[미국장 시간대 - 미국 {len(US_TICKERS)}종목 처리, 뉴욕시각 {us_now_et_time.strftime('%H:%M')}]")
         for ticker, info in US_TICKERS.items():
             print(f"\n[{ticker}]")
             try:
