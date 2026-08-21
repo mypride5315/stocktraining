@@ -145,3 +145,88 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
 [미국장 시간대 - 미국 5종목 처리, 뉴욕시각 14:00]
 
 [NU]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [NU] 데이터 54행 수신 (세션: 2026-08-20)
+  NU: 대기 중 (현재가 $14.28, 박스상단 $14.79, VWAP $14.29) - 박스상단 미돌파, VWAP 아래
+
+[PATH]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [PATH] 데이터 55행 수신 (세션: 2026-08-20)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+C:\TradingBot\auto_trading_bot.py:1094: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+  PATH: 진입 신호! $15.94 x 22주
+  [해외주문 HTTP 오류] status_code=500
+  [서버 응답 원문] {"rt_cd":"1","msg1":"초당 거래건수를 초과하였습니다.","msg_cd":"EGW00201","message":"EGW00201"}
+  [보낸 요청 body] {"CANO": "50200545", "ACNT_PRDT_CD": "01", "OVRS_EXCG_CD": "NYSE", "PDNO": "PATH", "ORD_QTY": "22", "OVRS_ORD_UNPR": "16.02", "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": "00"}
+  [tr_id] VTTT1002U
+  [PATH] 거래소 'NYSE'로 시도했으나 실패(HTTP 500), 다음 후보로 재시도...
+  [해외주문결과] 모의투자 매수주문이 완료 되었습니다.
+  [PATH] 거래소코드 'AMEX'로 성공 (이후 이 종목엔 계속 이 값을 사용함)
+  PATH: 매수 체결 (현재가 $15.94, 박스상단 $15.87, VWAP $15.79, 손절가 $15.63, 적용환율 1394.73원/달러)
+
+[INTC]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [INTC] 데이터 54행 수신 (세션: 2026-08-20)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+C:\TradingBot\auto_trading_bot.py:1094: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+  INTC: 진입 신호! $92.57 x 3주
+  [해외주문 HTTP 오류] status_code=500
+  [서버 응답 원문] {"rt_cd":"1","msg_cd":"IGW00034","msg1":"해외거래소코드를 확인해주세요."}
+  [보낸 요청 body] {"CANO": "50200545", "ACNT_PRDT_CD": "01", "OVRS_EXCG_CD": "NASDAQ", "PDNO": "INTC", "ORD_QTY": "3", "OVRS_ORD_UNPR": "93.03", "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": "00"}
+  [tr_id] VTTT1002U
+  [INTC] 거래소 'NASDAQ'로 시도했으나 실패(HTTP 500), 다음 후보로 재시도...
+  [해외주문결과] 모의투자 매수주문이 완료 되었습니다.
+  [INTC] 거래소코드 'AMEX'로 성공 (이후 이 종목엔 계속 이 값을 사용함)
+  INTC: 매수 체결 (현재가 $92.57, 박스상단 $92.29, VWAP $91.35, 손절가 $91.18, 적용환율 1394.73원/달러)
+
+[NOK]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [NOK] 데이터 55행 수신 (세션: 2026-08-20)
+  NOK: 청산 신호(take_profit)! $10.20 x 35주
+  [해외주문결과] 모의투자 매도주문이 완료 되었습니다.
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+C:\TradingBot\auto_trading_bot.py:1094: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+  NOK: 매도 체결 (현재가 $10.20, VWAP $10.10, 손익 $+4.37 / +6,097원, 적용환율 1394.73원/달러)
+
+[ONDS]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [ONDS] 데이터 55행 수신 (세션: 2026-08-20)
+  ONDS: 대기 중 (현재가 $8.38, 박스상단 $8.94, VWAP $8.37) - 박스상단 미돌파
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): -4,800원
+  [Git] push 실패(무시하고 계속 진행): ssh: Could not resolve hostname github.com: Name or service not known
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+ 실행 종료: 2026-08-21 03:01:00.961032
+============================================================
+
