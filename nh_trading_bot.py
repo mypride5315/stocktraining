@@ -34,8 +34,10 @@ Order/order_log_NH_YYYY_MM_DD.csv(실제 체결된 주문만)에 KIS 봇과 같�
 
 import os
 import json
+import time
 import requests
 from datetime import datetime, timedelta, time as dtime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
 
@@ -46,6 +48,7 @@ WATCHLIST_PATH = os.path.join(BASE_DIR, "watchlist.json")
 # KIS 봇(auto_trading_bot.py)과 같은 Log/, Order/ 폴더를 그대로 씀 - 파일명에만 NH를 붙여서 구분
 LOG_DIR = os.path.join(BASE_DIR, "Log")
 ORDER_DIR = os.path.join(BASE_DIR, "Order")
+RUN_LOCK_PATH = os.path.join(BASE_DIR, "nh_trading_bot.lock")
 # 카카오톡 "나에게 보내기" 알림도 KIS 봇과 같은 개인 토큰 파일을 공유해서 씀 (계정 하나라 재설정 불필요)
 KAKAO_TOKEN_PATH = os.path.join(BASE_DIR, "kakao_token.json")
 
@@ -54,6 +57,33 @@ REAL_BASE_URL = "https://api.nhplug.com:8443"
 
 MARKET_OPEN = dtime(9, 0)
 MARKET_CLOSE = dtime(15, 30)
+
+# 해외(미국) 정규장: 뉴욕 시간 09:30~16:00 기준. zoneinfo로 뉴욕 현지시각을 직접 계산해서
+# 서머타임(EDT/EST) 전환을 하드코딩 없이 자동으로 반영함 (ict_strategy_bot.py와 동일한 방식).
+US_MARKET_OPEN_ET = dtime(9, 30)
+US_MARKET_CLOSE_ET = dtime(16, 0)
+US_FORCE_CLOSE_BEFORE_MIN = 10
+
+# 해외주식 API(나무Plug)는 /gbstock/... 네임스페이스를 씀. fc_sec_trd_nat_cd: 200=미국.
+US_NAT_CD = "200"
+US_STATE_PATH = os.path.join(BASE_DIR, "nh_us_position_state.json")
+# 나무Plug에는 국내(/krstock/quote/v1/period)처럼 검증된 해외 분봉 조회 API 샘플이 없어서
+# (공식 저장소 PLUG-OpenAPI/nhplug-sdk의 snippets/gbstock/에 current_price만 있고 분봉 조회는 없음),
+# 확인된 "현재가 조회"(/gbstock/quote/v1/current)만으로 5분마다 스냅샷을 쌓아 자체 분봉을 만듦.
+# -> 미검증 엔드포인트를 추측해서 쓰는 것보다 안전한 접근.
+US_PRICE_HISTORY_PATH = os.path.join(BASE_DIR, "nh_us_price_history.json")
+
+
+def get_us_market_status():
+    """현재 시각 기준 미국 정규장이 열려있는지 뉴욕 현지시각으로 직접 판단.
+    반환값: (열림여부(bool), 강제청산시각_지남여부(bool), 뉴욕현지시각(datetime))"""
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    is_weekday_et = now_et.weekday() < 5
+    is_open = is_weekday_et and (US_MARKET_OPEN_ET <= now_et.time() <= US_MARKET_CLOSE_ET)
+    force_close_dt = (datetime.combine(now_et.date(), US_MARKET_CLOSE_ET)
+                       - timedelta(minutes=US_FORCE_CLOSE_BEFORE_MIN))
+    past_force_close = now_et.time() >= force_close_dt.time()
+    return is_open, past_force_close, now_et
 
 try:
     from nhplug import call
@@ -79,6 +109,25 @@ class TeeOutput:
     def flush(self):
         self.terminal.flush()
         self.log.flush()
+
+
+def _guard_duplicate_run(min_interval_sec: int = 60) -> bool:
+    """직전 실행 시작 후 min_interval_sec가 안 지났으면 중복 실행으로 보고 건너뜀.
+    Windows 작업 스케줄러가 같은 5분 트리거를 1~2초 간격으로 두 번 발화하는 현상이
+    관측되어(원인 불명) 추가한 방어 코드 - 정상적인 5분 간격 실행은 전혀 막지 않음.
+    반환값 True = 정상 진행, False = 방금 막 실행돼서 이번 건 건너뛰어야 함"""
+    now = datetime.now()
+    if os.path.exists(RUN_LOCK_PATH):
+        try:
+            with open(RUN_LOCK_PATH, "r", encoding="utf-8") as f:
+                last = datetime.fromisoformat(f.read().strip())
+            if (now - last).total_seconds() < min_interval_sec:
+                return False
+        except Exception:
+            pass  # 락 파일이 손상됐어도 정상 실행을 막으면 안 됨
+    with open(RUN_LOCK_PATH, "w", encoding="utf-8") as f:
+        f.write(now.isoformat())
+    return True
 
 
 def _setup_nh_logging():
@@ -233,6 +282,162 @@ def get_current_price(ticker: str, market_cd: str = "KRX"):
     except Exception as e:
         print(f"[오류] 시세 조회 실패: {e}")
         return None
+
+
+# ============================================================
+# 해외(미국) 주식 - 나무Plug /gbstock/... API
+# 아래 함수들의 요청 필드는 공식 저장소(github.com/PLUG-OpenAPI/nhplug-sdk)
+# snippets/gbstock/*.py 샘플로 확인된 필드만 사용함. 매도 주문(order/v1/sell)만
+# 공식 샘플이 없어서 매수(order/v1/buy)와 대칭 구조로 추정한 것이니, 실거래(enable_auto_orders)
+# 전에 반드시 모의투자 환경에서 매도 체결까지 직접 확인해주세요.
+# ============================================================
+def get_us_current_price(ticker: str):
+    """해외주식 현재가 조회 (POST /gbstock/quote/v1/current).
+    ⚠️ 공식 샘플(current_price("AAPL"))은 iem_cd만 보내는데, 이는 나스닥(AAPL) 종목만
+    테스트된 것으로 보임. 실제로 NYSE 종목(NU, PATH, NOK 등)은 iem_cd만으로는
+    "IGW40019 종목코드를 확인해주세요" 오류가 나서, 다른 gbstock API들과 동일하게
+    fc_sec_trd_nat_cd(국가코드, 200=미국)를 명시적으로 포함시킴.
+    rate_limit(IGW42903)은 순간적인 초과라 짧게 대기 후 재시도함."""
+    if not NHPLUG_AVAILABLE:
+        return None
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return call("/gbstock/quote/v1/current", {"iem_cd": ticker, "fc_sec_trd_nat_cd": US_NAT_CD})
+        except Exception as e:
+            is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
+            if is_rate_limit and attempt < max_attempts:
+                wait_sec = 1.5 * attempt
+                print(f"  [경고] 해외 시세 조회 rate_limit, {wait_sec:.1f}초 대기 후 재시도 "
+                      f"({attempt}/{max_attempts - 1})")
+                time.sleep(wait_sec)
+                continue
+            print(f"  [오류] 해외 시세 조회 실패: {e}")
+            return None
+
+
+def get_us_buyable_amount(act_no: str, ticker: str, price: float = None) -> dict:
+    """해외주식 매수가능금액/수량 조회 (POST /gbstock/inquiry/v1/buyableAmount, pcs_dit=1/2)"""
+    input_0 = {
+        "act_no": act_no, "pcs_dit": "2",  # 2: 매수가능수량
+        "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": ticker,
+        "wtm_cur_knd_cd": "2", "oss_orr_knd_cd": "1",
+        "ahi_nmn_pr_tp_cd": "00" if price is not None else "03",
+    }
+    if price is not None:
+        input_0["fc_orr_uit_pr"] = price
+    try:
+        return call("/gbstock/inquiry/v1/buyableAmount", input_0)
+    except Exception as e:
+        print(f"  [오류] 해외 매수가능수량 조회 실패: {e}")
+        return {}
+
+
+def get_us_sellable_quantity(act_no: str, ticker: str) -> dict:
+    """해외주식 매도가능수량 조회 (같은 buyableAmount API를 pcs_dit=3으로 호출, 공식 샘플 확인됨)"""
+    try:
+        return call("/gbstock/inquiry/v1/buyableAmount", {
+            "act_no": act_no, "pcs_dit": "3",
+            "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": ticker,
+            "wtm_cur_knd_cd": "2", "oss_orr_knd_cd": "1", "ahi_nmn_pr_tp_cd": "03",
+        })
+    except Exception as e:
+        print(f"  [오류] 해외 매도가능수량 조회 실패: {e}")
+        return {}
+
+
+def order_us_buy(act_no: str, iem_cd: str, orr_qty: int, price: float = None, dry_run: bool = True) -> dict:
+    """해외주식 매수 주문 (POST /gbstock/order/v1/buy, 공식 샘플로 확인된 필드)"""
+    input_0 = {
+        "act_no": act_no, "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": iem_cd,
+        "orr_qty": orr_qty, "ahi_nmn_pr_tp_cd": "00" if price is not None else "03",
+        "wtm_cur_knd_cd": "2",
+    }
+    if price is not None:
+        input_0["fc_orr_uit_pr"] = price
+    if dry_run:
+        return {"dry_run": True, "Input_0": input_0}
+    if not NHPLUG_AVAILABLE:
+        return {"success": False, "msg1": "nhplug 미설치"}
+    try:
+        result = call("/gbstock/order/v1/buy", input_0)
+        return {"success": True, "result": result}
+    except Exception as e:
+        print(f"  [주문 거부됨] 해외 매수: {e}")
+        return {"success": False, "msg1": str(e)}
+
+
+def order_us_sell(act_no: str, iem_cd: str, orr_qty: int, price: float = None, dry_run: bool = True) -> dict:
+    """⚠️ 미검증: 해외주식 매도 주문. 공식 샘플에 매도 주문이 없어서 매수(order/v1/buy)와
+    대칭 구조(/gbstock/order/v1/sell, 동일 필드)로 추정해 구현함. 실거래 전 반드시
+    모의투자 환경에서 매도 체결이 정상적으로 되는지 직접 확인해주세요."""
+    input_0 = {
+        "act_no": act_no, "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": iem_cd,
+        "orr_qty": orr_qty, "ahi_nmn_pr_tp_cd": "00" if price is not None else "03",
+        "wtm_cur_knd_cd": "2",
+    }
+    if price is not None:
+        input_0["fc_orr_uit_pr"] = price
+    if dry_run:
+        return {"dry_run": True, "Input_0": input_0}
+    if not NHPLUG_AVAILABLE:
+        return {"success": False, "msg1": "nhplug 미설치"}
+    try:
+        result = call("/gbstock/order/v1/sell", input_0)
+        return {"success": True, "result": result}
+    except Exception as e:
+        print(f"  [주문 거부됨] 해외 매도: {e}")
+        return {"success": False, "msg1": str(e)}
+
+
+def load_us_price_history() -> dict:
+    if os.path.exists(US_PRICE_HISTORY_PATH):
+        try:
+            with open(US_PRICE_HISTORY_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_us_price_history(history: dict):
+    with open(US_PRICE_HISTORY_PATH, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False)
+
+
+def append_us_price_snapshot(ticker: str, price: float, volume: float = None):
+    """검증된 현재가 조회 API로 5분마다(Task Scheduler 주기) 스냅샷을 쌓아서
+    자체적으로 분봉을 구성함. 나무Plug 해외 분봉 조회 API가 공식적으로 검증되지
+    않았기 때문에, 검증된 현재가 API만으로 안전하게 시계열을 만드는 방식."""
+    history = load_us_price_history()
+    today_et = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+    key = f"{ticker}:{today_et}"
+    if key not in history:
+        history[key] = []
+    history[key].append({"ts": datetime.now().isoformat(), "price": price, "volume": volume})
+    # 하루치만 유지 (오래된 날짜 키는 정리)
+    history = {k: v for k, v in history.items() if k.endswith(today_et)}
+    save_us_price_history(history)
+    return history[key]
+
+
+def build_us_bars_from_history(ticker: str, bucket_minutes: int = 5) -> pd.DataFrame:
+    """쌓인 현재가 스냅샷을 bucket_minutes 단위로 묶어 OHLCV 분봉으로 변환.
+    스냅샷 개수가 적은 하루 초반에는 봉 개수가 적을 수밖에 없음(자연스러운 현상)."""
+    today_et = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
+    history = load_us_price_history()
+    snapshots = history.get(f"{ticker}:{today_et}", [])
+    if not snapshots:
+        return pd.DataFrame()
+    df = pd.DataFrame(snapshots)
+    df["datetime"] = pd.to_datetime(df["ts"])
+    df = df.set_index("datetime").sort_index()
+    ohlc = df["price"].resample(f"{bucket_minutes}min").ohlc()
+    vol = df["volume"].resample(f"{bucket_minutes}min").sum() if df["volume"].notna().any() else None
+    ohlc = ohlc.dropna(subset=["open"]).reset_index()
+    ohlc.columns = ["datetime", "open", "high", "low", "close"]
+    ohlc["volume"] = vol.reindex(ohlc["datetime"]).values if vol is not None else 0.0
+    return ohlc
 
 
 def order_cash_buy(act_no: str, iem_cd: str, orr_qty: int, orr_pr: int = None, dry_run: bool = True) -> dict:
@@ -394,18 +599,35 @@ def fetch_today_minute_bars(iem_cd: str, market_cd: str = "KRX", xtick: str = "1
     if not NHPLUG_AVAILABLE:
         print("[오류] nhplug 패키지 미설치로 조회 불가")
         return pd.DataFrame()
-    try:
-        result = call("/krstock/quote/v1/period", {
-            "market_cd": market_cd,
-            "iem_cd": iem_cd,
-            "gubun": "5",           # 5=분봉
-            "xtick": xtick,         # 분 단위 (예: "1"=1분봉)
-            "today_cls_code": "1",  # 당일만조회
-            "array_cnt": array_cnt,
-            "fake_tick": "1",       # 거래량0봉 제외
-        })
-    except Exception as e:
-        print(f"[오류] 분봉 조회 실패: {e}")
+
+    # rate_limit(IGW42903)은 순간적인 호출량 초과라 잠깐 쉬었다 재시도하면 대부분 풀림.
+    # business(00007) 등 서버 측 오류는 재시도해도 계속 실패할 가능성이 높으므로 바로 포기함.
+    max_attempts = 3
+    result = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = call("/krstock/quote/v1/period", {
+                "market_cd": market_cd,
+                "iem_cd": iem_cd,
+                "gubun": "5",           # 5=분봉
+                "xtick": xtick,         # 분 단위 (예: "1"=1분봉)
+                "today_cls_code": "1",  # 당일만조회
+                "array_cnt": array_cnt,
+                "fake_tick": "1",       # 거래량0봉 제외
+            })
+            break
+        except Exception as e:
+            is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
+            if is_rate_limit and attempt < max_attempts:
+                wait_sec = 1.0 * attempt  # 1초, 2초로 점점 늘려가며 대기
+                print(f"[경고] 분봉 조회 rate_limit, {wait_sec:.0f}초 대기 후 재시도 "
+                      f"({attempt}/{max_attempts - 1})")
+                time.sleep(wait_sec)
+                continue
+            print(f"[오류] 분봉 조회 실패: {e}")
+            return pd.DataFrame()
+
+    if result is None:
         return pd.DataFrame()
 
     rows = result.get("Output_0") or []
@@ -529,6 +751,68 @@ def process_ticker_nh(iem_cd: str, act_no: str, state: dict, capital_krw: int = 
         return {"ticker": iem_cd, "status": "error", "error": str(e)}
 
 
+def process_ticker_nh_us(ticker: str, act_no: str, state: dict, capital_usd: float = 400,
+                          orb_bars: int = 6, stop_pct: float = 0.02, tp_trigger_pct: float = 0.03,
+                          dry_run: bool = True) -> dict:
+    """해외(미국) 종목 1개에 대해 박스+VWAP 전략을 한 번 평가.
+    process_ticker_nh()와 동일한 상태기계 구조지만, 분봉 데이터를 국내처럼 API에서 직접
+    받는 대신 검증된 현재가 API로 쌓은 자체 스냅샷 분봉(build_us_bars_from_history)을 씀.
+    orb_bars=6: 5분 단위 스냅샷이므로 6개(=30분)가 쌓여야 오프닝 레인지 형성 완료로 봄.
+    capital_usd: 국내(원화)와 자금 단위가 달라서 별도 달러 한도를 씀(환율 미반영, 의도된 제한)."""
+    try:
+        pos = state.setdefault(ticker, {"in_position": False, "day_traded": False})
+
+        price_data = get_us_current_price(ticker)
+        if not price_data:
+            return {"ticker": ticker, "status": "no_data"}
+        # Output_0 필드명은 공식 chk_current_price.py 샘플에서 구체적으로 확정되지 않아
+        # 흔한 후보들을 순서대로 시도함 (해외주식 현재가 응답의 일반적인 필드명 패턴)
+        o0 = price_data.get("Output_0", {}) if isinstance(price_data, dict) else {}
+        price_raw = o0.get("prpr") or o0.get("last") or o0.get("iem_prpr")
+        if price_raw is None:
+            print(f"  {ticker}: 현재가 응답에서 가격 필드를 못 찾음 (응답 키: {list(o0.keys())})")
+            return {"ticker": ticker, "status": "no_data"}
+        price = float(price_raw)
+        append_us_price_snapshot(ticker, price)
+
+        df = build_us_bars_from_history(ticker)
+        if len(df) < orb_bars:
+            return {"ticker": ticker, "status": "box_forming",
+                    "bars_so_far": len(df), "bars_needed": orb_bars}
+
+        sig = check_orb_vwap_signal(df, orb_minutes=orb_bars * 5)
+        if sig.get("box_forming"):
+            return {"ticker": ticker, "status": "box_forming"}
+
+        if not pos["in_position"] and not pos["day_traded"]:
+            if not sig["entry_signal"]:
+                return {"ticker": ticker, "status": "waiting", **sig}
+            shares = int(capital_usd // sig["close"])
+            if shares <= 0:
+                return {"ticker": ticker, "status": "insufficient_capital", **sig}
+            order_result = order_us_buy(act_no, ticker, shares, dry_run=dry_run)
+            if not dry_run and order_result.get("success"):
+                pos.update({"in_position": True, "day_traded": True,
+                            "entry_price": sig["close"], "shares": shares})
+            return {"ticker": ticker, "status": "entry_signal", "order_result": order_result, **sig}
+
+        if pos["in_position"]:
+            exit_reason = check_exit_signal(sig["low"], sig["high"], pos["entry_price"],
+                                             stop_pct, tp_trigger_pct)
+            if not exit_reason:
+                return {"ticker": ticker, "status": "holding", **sig}
+            order_result = order_us_sell(act_no, ticker, pos["shares"], dry_run=dry_run)
+            if not dry_run and order_result.get("success"):
+                pos.update({"in_position": False})
+            return {"ticker": ticker, "status": f"exit_signal:{exit_reason}",
+                    "order_result": order_result, **sig}
+
+        return {"ticker": ticker, "status": "done_for_today", **sig}
+    except Exception as e:
+        print(f"[오류] {ticker} 해외 전략 평가 중 예외 발생: {e}")
+        return {"ticker": ticker, "status": "error", "error": str(e)}
+
+
 def load_nh_watchlist() -> list:
     """국내 종목코드 리스트 로드. watchlist.json(KIS 봇과 공유하는 종목 스크리닝 결과)이
     있으면 그걸 재사용하고(나중에 KIS-NH 비교를 위해 같은 종목군으로 맞춤), 없으면
@@ -545,11 +829,31 @@ def load_nh_watchlist() -> list:
     return ["005930"]
 
 
-def load_nh_state(tickers: list) -> dict:
+def load_nh_us_watchlist() -> list:
+    """해외(미국) 종목 티커 리스트 로드. watchlist.json의 'us_tickers' 키를
+    ict_strategy_bot.py와 동일한 형식으로 공유해서 씀 (예: {"AAPL": "NAS", ...}).
+    없으면 빈 리스트를 반환하고 해외장은 건너뜀."""
+    if not os.path.exists(WATCHLIST_PATH):
+        return []
+    try:
+        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+            wl = json.load(f)
+        us_tickers = list(wl.get("us_tickers", {}).keys())
+        if not us_tickers:
+            print("[알림] watchlist.json에 'us_tickers'가 없어 해외장 종목이 없습니다.")
+        return us_tickers
+    except Exception as e:
+        print(f"[알림] watchlist.json 해외 종목 로드 실패({e})")
+        return []
+
+
+def load_nh_state(tickers: list, state_path: str = None) -> dict:
     """포지션 상태 로드 + 날짜가 바뀌면 일일 카운터만 리셋(청산 안 된 포지션은 유지).
-    -- auto_trading_bot.py의 load_state() 구조를 참고함(그대로 복사 아님) --"""
-    if os.path.exists(NH_STATE_PATH):
-        with open(NH_STATE_PATH, "r", encoding="utf-8") as f:
+    -- auto_trading_bot.py의 load_state() 구조를 참고함(그대로 복사 아님) --
+    state_path: 생략 시 국내(NH_STATE_PATH), 해외는 US_STATE_PATH를 넘겨서 상태를 완전히 분리함."""
+    path = state_path or NH_STATE_PATH
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             state = json.load(f)
     else:
         state = {}
@@ -580,6 +884,11 @@ def save_nh_state(state: dict):
 
 def main():
     _setup_nh_logging()
+
+    if not _guard_duplicate_run():
+        print(f"[중복 실행 감지] {datetime.now()} - 직전 실행 후 얼마 안 지나 이번 실행은 건너뜁니다. "
+              f"(Windows 작업 스케줄러가 같은 트리거를 짧은 간격으로 두 번 발화하는 현상 방어)")
+        return
 
     # 워치독: 5분마다 반복 실행되는 스케줄러 특성상, 네트워크 호출이 멈추는 등
     # 어떤 이유로든 제한시간 안에 안 끝나면 강제 종료해서 python.exe가 계속
@@ -632,48 +941,99 @@ def main():
 
     capital_per_ticker = int(cfg.get("capital_per_ticker_krw", 1_000_000))
     circuit_breaker = int(cfg.get("circuit_breaker_krw", 500_000))
+    capital_per_ticker_usd = float(cfg.get("capital_per_ticker_usd", 400))
 
     now = datetime.now()
     is_weekday = now.weekday() < 5
     in_market_hours = MARKET_OPEN <= now.time() <= MARKET_CLOSE
-    if not (is_weekday and in_market_hours):
-        print(f"\n국내 정규장 시간이 아닙니다({MARKET_OPEN}~{MARKET_CLOSE}, 평일). 종료합니다.")
+    us_open, us_force_closed, us_now_et = get_us_market_status()
+
+    if not (is_weekday and in_market_hours) and not us_open:
+        print(f"\n국내/해외 모두 장 시간이 아닙니다. 종료합니다. (참고: 현재 뉴욕시각 {us_now_et.strftime('%H:%M')})")
         return
 
-    tickers = load_nh_watchlist()
-    state = load_nh_state(tickers)
+    if is_weekday and in_market_hours:
+        tickers = load_nh_watchlist()
+        state = load_nh_state(tickers)
 
-    print(f"\n[국내장 시간대 - {len(tickers)}종목 처리]")
-    for ticker in tickers:
-        if state["daily_pnl"] <= -circuit_breaker:
-            print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 {state['daily_pnl']:,.0f}원) - 신규 진입 중단")
-            break
-        print(f"\n[{ticker}]")
-        try:
-            r = process_ticker_nh(ticker, account_no, state["positions"], capital_krw=capital_per_ticker,
-                                   dry_run=dry_run)
-            print(f"  상태: {r.get('status')}"
-                  + (f" | 박스상단 {r['orb_high']:,.0f} VWAP {r['vwap']:,.0f} 현재가 {r['close']:,.0f}"
-                     if "orb_high" in r else ""))
-            if r.get("order_result"):
-                print(f"  주문결과: {r['order_result']}")
+        print(f"\n[국내장 시간대 - {len(tickers)}종목 처리]")
+        for idx, ticker in enumerate(tickers):
+            if state["daily_pnl"] <= -circuit_breaker:
+                print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 {state['daily_pnl']:,.0f}원) - 신규 진입 중단")
+                break
+            if idx > 0:
+                # 종목 사이에 텀을 둬서 API 호출이 한꺼번에 몰리지 않도록 함 (rate_limit 방지)
+                time.sleep(0.5)
+            print(f"\n[{ticker}]")
+            try:
+                r = process_ticker_nh(ticker, account_no, state["positions"], capital_krw=capital_per_ticker,
+                                       dry_run=dry_run)
+                print(f"  상태: {r.get('status')}"
+                      + (f" | 박스상단 {r['orb_high']:,.0f} VWAP {r['vwap']:,.0f} 현재가 {r['close']:,.0f}"
+                         if "orb_high" in r else ""))
+                if r.get("order_result"):
+                    print(f"  주문결과: {r['order_result']}")
 
-            status = str(r.get("status", ""))
-            if not dry_run and status == "entry_signal":
-                pos = state["positions"][ticker]
-                log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout")
-            elif not dry_run and status.startswith("exit_signal"):
-                pos = state["positions"][ticker]
-                pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
-                state["daily_pnl"] += pnl
-                reason = status.split(":", 1)[1] if ":" in status else status
-                log_order_nh("SELL", ticker, r["close"], pos["shares"], reason, extra=f"pnl={pnl:.0f}")
-                print(f"  손익: {pnl:+,.0f}원")
-        except Exception as e:
-            print(f"  [오류] {e}")
+                status = str(r.get("status", ""))
+                if not dry_run and status == "entry_signal":
+                    pos = state["positions"][ticker]
+                    log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout")
+                elif not dry_run and status.startswith("exit_signal"):
+                    pos = state["positions"][ticker]
+                    pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
+                    state["daily_pnl"] += pnl
+                    reason = status.split(":", 1)[1] if ":" in status else status
+                    log_order_nh("SELL", ticker, r["close"], pos["shares"], reason, extra=f"pnl={pnl:.0f}")
+                    print(f"  손익: {pnl:+,.0f}원")
+            except Exception as e:
+                print(f"  [오류] {e}")
 
-    save_nh_state(state)
-    print(f"\n오늘 NH 누적손익: {state['daily_pnl']:+,.0f}원")
+        save_nh_state(state)
+        print(f"\n오늘 NH 국내 누적손익: {state['daily_pnl']:+,.0f}원")
+
+    if us_open:
+        us_tickers = load_nh_us_watchlist()
+        if us_tickers:
+            us_state = load_nh_state(us_tickers, state_path=US_STATE_PATH)
+            print(f"\n[해외(미국) {len(us_tickers)}종목 처리 - 뉴욕시각 {us_now_et.strftime('%H:%M')}]")
+            for idx, ticker in enumerate(us_tickers):
+                if us_state["daily_pnl"] <= -circuit_breaker:
+                    print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 {us_state['daily_pnl']:,.0f}) - 신규 진입 중단")
+                    break
+                if idx > 0:
+                    time.sleep(1.5)  # NH 해외 API가 KIS보다 rate_limit에 더 민감해서 딜레이를 늘림
+                print(f"\n[{ticker}]")
+                try:
+                    r = process_ticker_nh_us(ticker, account_no, us_state["positions"],
+                                              capital_usd=capital_per_ticker_usd, dry_run=dry_run)
+                    print(f"  상태: {r.get('status')}"
+                          + (f" | 박스상단 {r['orb_high']:,.2f} VWAP {r['vwap']:,.2f} 현재가 {r['close']:,.2f}"
+                             if "orb_high" in r else ""))
+                    if r.get("order_result"):
+                        print(f"  주문결과: {r['order_result']}")
+
+                    status = str(r.get("status", ""))
+                    if not dry_run and status == "entry_signal":
+                        pos = us_state["positions"][ticker]
+                        log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout",
+                                     extra="market=overseas")
+                    elif not dry_run and status.startswith("exit_signal"):
+                        pos = us_state["positions"][ticker]
+                        pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
+                        us_state["daily_pnl"] += pnl
+                        reason = status.split(":", 1)[1] if ":" in status else status
+                        log_order_nh("SELL", ticker, r["close"], pos["shares"], reason,
+                                     extra=f"pnl={pnl:.2f}|market=overseas")
+                        print(f"  손익: {pnl:+,.2f}")
+                except Exception as e:
+                    print(f"  [오류] {e}")
+
+            # 해외 포지션은 국내와 다른 파일에 저장 (종목코드 체계가 겹칠 수 있어 상태 분리)
+            with open(US_STATE_PATH, "w", encoding="utf-8") as f:
+                json.dump(us_state, f, ensure_ascii=False, indent=2)
+            print(f"\n오늘 NH 해외 누적손익: {us_state['daily_pnl']:+,.2f}")
+
+    _watchdog.cancel()
 
 
 if __name__ == "__main__":

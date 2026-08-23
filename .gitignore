@@ -16,6 +16,9 @@ nh_config.json
 # ============================================================
 position_state.json
 nh_position_state.json
+nh_us_position_state.json
+nh_us_price_history.json
+nh_trading_bot.lock
 watchlist.json
 strategy_params.json
 last_weekly_run.txt
