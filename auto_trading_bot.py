@@ -575,8 +575,14 @@ def log_order(action, ticker, price, shares, reason, extra=""):
     mode_label = "모의" if IS_MOCK else "실전"
     action_label = {"BUY": "매수", "SELL": "매도", "BUY_US": "매수(미국)", "SELL_US": "매도(미국)"}.get(action, action)
     price_str = f"{price:,.2f}" if "US" in action else f"{price:,.0f}원"
+
+    # 종목명 조회: 미국이면 US_TICKERS, 국내면 TICKERS에서 찾음 (watchlist.json에서 로드된 정보)
+    ticker_dict = US_TICKERS if "US" in action else TICKERS
+    ticker_name = ticker_dict.get(ticker, {}).get("name", "")
+    ticker_display = f"{ticker}({ticker_name})" if ticker_name and ticker_name != ticker else ticker
+
     msg = (f"[{mode_label}] {action_label} 체결\n"
-           f"종목: {ticker}\n"
+           f"종목: {ticker_display}\n"
            f"가격: {price_str} x {shares}주\n"
            f"사유: {reason_kr}")
     if extra:
@@ -1770,7 +1776,15 @@ def screen_analyze_us_ticker(ticker: str):
 
     score = min(round(score, 1), 100.0)
 
-    return {"ticker": ticker, "market": "US", "score": score,
+    # 종목명 조회 (실패해도 스크리닝 자체는 계속 진행되도록 예외 처리)
+    company_name = ticker
+    try:
+        info = yf.Ticker(ticker).info
+        company_name = info.get("shortName") or info.get("longName") or ticker
+    except Exception:
+        pass  # 조회 실패시 그냥 티커명을 이름으로 사용
+
+    return {"ticker": ticker, "market": "US", "score": score, "name": company_name,
             "avg_daily_range_pct": round(avg_range, 2), "panic_day_ratio_pct": round(panic_day_ratio * 100, 1),
             "is_nr7": is_nr7, "is_high_rvol": is_high_rvol, "rvol": round(rvol, 2) if rvol is not None else None,
             "avg_won_volume": round(avg_dollar_volume, 0), "trend_corr": round(trend_corr, 3),
@@ -1823,7 +1837,7 @@ def screen_write_watchlist(df_result, top_kr=5, top_us=5):
         "generated_at": datetime.now().isoformat(),
         "kr_tickers": {row["ticker"]: {"account_prdt_cd": "01", "name": row.get("name", ""), "score": row["score"]}
                        for _, row in kr_rows.iterrows()},
-        "us_tickers": {row["ticker"]: {"exchange": "AMEX", "score": row["score"]}
+        "us_tickers": {row["ticker"]: {"exchange": "AMEX", "score": row["score"], "name": row.get("name", row["ticker"])}
                        for _, row in us_rows.iterrows()},
     }
 
