@@ -2732,3 +2732,75 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
  실행 종료: 2026-08-23 23:30:21.434624
 ============================================================
 
+
+============================================================
+ 실행 시각: 2026-08-24 00:37:20.971631
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-24 00:37:21.923285
+============================================================
+적용 환율: 1386.0원/달러
+
+[미국장 시간대 - 미국 5종목 처리]
+
+[NU]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [NU] 데이터 78행 수신 (세션: 2026-08-21)
+  NU: 청산 신호(time_close)! $14.57 x 24주
+  [해외주문 거부됨] msg_cd=40100000 msg1=모의투자 영업일이 아닙니다.
+  [NU] 거래소 'NYSE'로 시도했으나 실패(모의투자 영업일이 아닙니다.), 다음 후보로 재시도...
+  [해외주문 거부됨] msg_cd=40100000 msg1=모의투자 영업일이 아닙니다.
+  [NU] 거래소 'AMEX'로 시도했으나 실패(모의투자 영업일이 아닙니다.), 다음 후보로 재시도...
+  [해외주문 거부됨] msg_cd=40100000 msg1=모의투자 영업일이 아닙니다.
+  [NU] 거래소 'NASD'로 시도했으나 실패(모의투자 영업일이 아닙니다.), 다음 후보로 재시도...
+  [NU] 모든 거래소 후보(['NYSE', 'AMEX', 'NASD'])로 시도했으나 전부 실패했습니다.
+  NU: 매도 주문이 거부되었습니다 (계좌 권한 문제일 수 있음). 포지션을 그대로 유지하고 다음 주기에 재시도합니다.
+
+[PATH]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [PATH] 데이터 78행 수신 (세션: 2026-08-21)
+  PATH: 장마감 임박(미국 동부시간 15:55:00), 신규 진입 안 함
+
+[INTC]
+$INTC: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['INTC']: possibly delisted; no price data found  (period=2d)
+  [INTC] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  INTC: 데이터 부족 (세션 초반이거나 휴장)
+
+[NOK]
+$NOK: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['NOK']: possibly delisted; no price data found  (period=2d)
+  [NOK] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  NOK: 데이터 부족 (세션 초반이거나 휴장)
+
+[ONDS]
+$ONDS: possibly delisted; no price data found  (period=2d)
+
+1 Failed download:
+['ONDS']: possibly delisted; no price data found  (period=2d)
+  [ONDS] yfinance가 빈 데이터를 반환함 (일시적 오류이거나 휴장일 가능성)
+  ONDS: 데이터 부족 (세션 초반이거나 휴장)
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] push 실패(무시하고 계속 진행): ssh: Could not resolve hostname github.com: Name or service not known
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+ 실행 종료: 2026-08-24 00:39:45.836877
+============================================================
+
