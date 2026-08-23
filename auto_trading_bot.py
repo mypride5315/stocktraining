@@ -104,7 +104,6 @@ try:
     import glob
     import time as time_module
     from datetime import datetime, time, date, timedelta
-    from zoneinfo import ZoneInfo
     import pandas as pd
     import numpy as np
     import requests
@@ -297,19 +296,6 @@ TICKERS, US_TICKERS = load_watchlist(verbose=_SHOW_SESSION_START_LOG)
 
 US_MARKET_OPEN_ET = time(9, 30)   # 미국 동부시간 정규장 개장
 US_FORCE_CLOSE_ET = time(15, 50)  # 정규장 마감 10분 전 강제청산
-
-
-def get_us_market_status():
-    """뉴욕 현지시각을 zoneinfo로 직접 계산해서 미국 정규장 상태를 판단.
-    기존의 '한국시간 22:00~06:00' 같은 고정 근사 윈도우는 서머타임 전환 시
-    실제 개장(22:30 KST, EDT 기준)보다 먼저 '장중'으로 오판해서 전날 마감 데이터를
-    가져오는 원인이 됐음(2026-08-19 로그에서 확인된 버그). 이제 서머타임을
-    하드코딩 없이 자동으로 반영함.
-    반환값: (정규장열림여부, 뉴욕현재시각(time), 뉴욕현재일시(datetime))"""
-    now_et_dt = datetime.now(ZoneInfo("America/New_York"))
-    is_weekday_et = now_et_dt.weekday() < 5
-    is_open = is_weekday_et and (US_MARKET_OPEN_ET <= now_et_dt.time() <= time(16, 0))
-    return is_open, now_et_dt.time(), now_et_dt
 
 # 전략 파라미터 (기본값 - strategy_params.json이 없을 때 사용됨)
 _DEFAULT_ORB_MINUTES = 30
@@ -914,6 +900,27 @@ def calc_vwap(df):
     return cum_vp/cum_vol.replace(0, np.nan)
 
 
+# RSI(상대강도지수) 과매수 필터: 박스+VWAP을 돌파했더라도, RSI가 이 값 이상이면
+# "이미 너무 많이 오른 뒤의 추격매수"로 판단해서 진입을 보류함
+RSI_PERIOD = 14
+RSI_OVERBOUGHT_THRESHOLD = 75
+
+
+def calc_rsi(df, period=RSI_PERIOD):
+    """표준 RSI(Wilder's smoothing) 계산. 데이터가 (period+1)개 미만이면 전부 NaN 반환
+    (=필터 판단 불가 상태이며, 이 경우 진입 로직에서는 RSI 조건을 건너뛰도록 처리함)."""
+    delta = df["close"].diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
+    rs = avg_gain / avg_loss.replace(0, np.nan)
+    rsi = 100 - (100 / (1 + rs))
+    # 손실이 전혀 없었던 극단적 경우(avg_loss=0) -> RSI 100으로 처리
+    rsi = rsi.where(avg_loss != 0, 100)
+    return rsi
+
+
 def process_us_ticker(ticker, exchange, cfg, token, state):
     strategy = get_strategy_for(ticker)
     orb_bars_local = max(1, strategy["orb_minutes"] // 5)  # 미국은 봉개수 기반이라 분->봉개수 환산
@@ -983,11 +990,9 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
         state["orb_high"][orb_high_key] = orb_high
 
     df["vwap"] = calc_vwap(df)
+    df["rsi"] = calc_rsi(df)
     latest = df.iloc[-1]
-    _, latest_et_time, _ = get_us_market_status()  # 데이터의 마지막 행이 아니라 실제 현재 뉴욕시각을 씀
-    # (예전엔 latest["datetime"].time()으로 데이터의 마지막 봉 시각을 썼는데, 프리마켓처럼
-    #  오늘 데이터가 아직 없어 전날 마감 데이터가 마지막 행으로 오면 "지금이 장마감"으로
-    #  오판하는 버그가 있었음 - 2026-08-19 로그로 확인됨)
+    latest_et_time = latest["datetime"].time()  # 미국 종목 데이터는 원본(미국 동부시간) 그대로 유지됨
     capital_usd = CAPITAL_PER_TICKER_KRW / state.get("fx_rate", 1350)
 
     if not pos["in_position"] and not pos["day_traded"]:
@@ -997,7 +1002,9 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
         if latest_et_time >= US_FORCE_CLOSE_ET:
             print(f"  {ticker}: 장마감 임박(미국 동부시간 {latest_et_time}), 신규 진입 안 함")
             return
-        if latest["close"] > orb_high and latest["close"] > latest["vwap"]:
+        # RSI가 아직 계산 안 됐으면(데이터 부족) 필터 없이 통과, 계산됐으면 과매수 여부 확인
+        rsi_ok = pd.isna(latest["rsi"]) or latest["rsi"] < RSI_OVERBOUGHT_THRESHOLD
+        if latest["close"] > orb_high and latest["close"] > latest["vwap"] and rsi_ok:
             # 실제 매수 시점의 환율로 다시 계산 (5분 대기 사이클마다가 아니라, 진입 순간에만 조회)
             trade_fx_rate = get_fx_rate_safe()
             capital_usd = CAPITAL_PER_TICKER_KRW / trade_fx_rate
@@ -1024,18 +1031,23 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
                         "entry_fx_rate": trade_fx_rate})
             log_order("BUY_US", ticker, buy_price, shares, "orb_vwap_breakout")
             print(f"  {ticker}: 매수 체결 (현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f}, "
-                  f"VWAP ${latest['vwap']:.2f}, 손절가 ${pos['stop_price']:.2f}, "
+                  f"VWAP ${latest['vwap']:.2f}, RSI {latest['rsi']:.1f}, 손절가 ${pos['stop_price']:.2f}, "
                   f"적용환율 {trade_fx_rate:.2f}원/달러)")
         else:
             above_box = latest["close"] > orb_high
             above_vwap = latest["close"] > latest["vwap"]
+            rsi_val = latest["rsi"]
+            is_overbought = pd.notna(rsi_val) and rsi_val >= RSI_OVERBOUGHT_THRESHOLD
             reason = []
             if not above_box:
                 reason.append("박스상단 미돌파")
             if not above_vwap:
                 reason.append("VWAP 아래")
+            if is_overbought:
+                reason.append(f"RSI 과매수({rsi_val:.1f})")
+            rsi_str = f"{rsi_val:.1f}" if pd.notna(rsi_val) else "계산불가(데이터부족)"
             print(f"  {ticker}: 대기 중 (현재가 ${latest['close']:.2f}, 박스상단 ${orb_high:.2f}, "
-                  f"VWAP ${latest['vwap']:.2f}) - {', '.join(reason)}")
+                  f"VWAP ${latest['vwap']:.2f}, RSI {rsi_str}) - {', '.join(reason) if reason else '조건 충족 대기'}")
         return
 
     if pos["in_position"]:
@@ -1145,6 +1157,7 @@ def process_ticker(ticker, cfg, token, state):
             return
 
     df["vwap"] = calc_vwap(df)
+    df["rsi"] = calc_rsi(df)
     open_dt = pd.Timestamp.combine(date.today(), MARKET_OPEN)
     range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
     opening = df[df["datetime"] < range_end]
@@ -1169,7 +1182,8 @@ def process_ticker(ticker, cfg, token, state):
         if now.time() >= FORCE_CLOSE_TIME:
             return
 
-        if latest["close"] > orb_high and latest["close"] > latest["vwap"]:
+        rsi_ok = pd.isna(latest["rsi"]) or latest["rsi"] < RSI_OVERBOUGHT_THRESHOLD
+        if latest["close"] > orb_high and latest["close"] > latest["vwap"] and rsi_ok:
             buy_price = latest["close"]
             shares = int(capital // buy_price)
             if shares <= 0:
@@ -1281,10 +1295,8 @@ def main():
     # 시간대에 따라 국내장/미국장 자동 판별
     is_weekday = now.weekday() < 5
     kr_market_hours = time(9, 0) <= now.time() <= time(15, 30)
-    # 미국장 - zoneinfo로 뉴욕 현지시각을 직접 계산해서 서머타임을 정확히 반영함.
-    # (예전엔 '한국시간 22:00~06:00' 고정 근사치를 썼는데, 이게 실제 개장(서머타임 땐 22:30 KST)보다
-    #  먼저 '장중'으로 오판해서 전날 마감 데이터를 가져오는 버그의 원인이었음 - 2026-08-19 로그로 확인됨)
-    us_market_hours, us_now_et_time, us_now_et_dt = get_us_market_status()
+    # 미국장(한국시간 기준, 서머타임 포함 대략 22:00~06:00)
+    us_market_hours = now.time() >= time(22, 0) or now.time() <= time(6, 0)
 
     if is_weekday and kr_market_hours:
         print(f"\n[국내장 시간대 - 국내 {len(TICKERS)}종목 처리]")
@@ -1296,7 +1308,7 @@ def main():
                 print(f"  [오류] {e}")
 
     if us_market_hours:
-        print(f"\n[미국장 시간대 - 미국 {len(US_TICKERS)}종목 처리, 뉴욕시각 {us_now_et_time.strftime('%H:%M')}]")
+        print(f"\n[미국장 시간대 - 미국 {len(US_TICKERS)}종목 처리]")
         for ticker, info in US_TICKERS.items():
             print(f"\n[{ticker}]")
             try:
@@ -1960,12 +1972,14 @@ def opt_simulate_day(day_df, orb_bars, stop_pct, tp_trigger_pct, tp_max_pct):
     if len(df) < orb_bars + 1:
         return None
     df["vwap"] = calc_vwap(df)
+    df["rsi"] = calc_rsi(df)  # ⚠️ 실전 진입 로직과 동일하게, RSI 과매수 필터를 백테스트에도 반영
     orb_high = df.iloc[:orb_bars]["high"].max()
     rest = df.iloc[orb_bars:].reset_index(drop=True)
     entry_idx = None
     for i in range(len(rest)):
         row = rest.iloc[i]
-        if row["close"] > orb_high and row["close"] > row["vwap"]:
+        rsi_ok = pd.isna(row["rsi"]) or row["rsi"] < RSI_OVERBOUGHT_THRESHOLD
+        if row["close"] > orb_high and row["close"] > row["vwap"] and rsi_ok:
             entry_idx = i
             break
     if entry_idx is None:
