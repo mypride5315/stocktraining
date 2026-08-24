@@ -646,3 +646,48 @@ C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for 
   상태: box_forming
 
 오늘 NH 국내 누적손익: +0원
+============================================================
+ NH투자증권(나무Plug) ORB+VWAP 자동매매 - 2026-08-24 13:35:01.181748
+============================================================
+[모드] 모의투자(moapi)로 접속합니다.
+[안전장치 해제됨] enable_auto_orders=true - 신호 발생 시 실제로 주문이 나갑니다.
+
+[국내장 시간대 - 5종목 처리]
+
+[005930]
+C:\TradingBot\nh_trading_bot.py:672: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
+  상태: box_forming
+
+[114800]
+C:\TradingBot\nh_trading_bot.py:672: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
+  상태: box_forming
+
+[229200]
+C:\TradingBot\nh_trading_bot.py:672: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
+  상태: box_forming
+
+[251340]
+[경고] 분봉 조회 rate_limit, 1초 대기 후 재시도 (1/2)
+C:\TradingBot\nh_trading_bot.py:672: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
+  상태: box_forming
+
+[379800]
+C:\TradingBot\nh_trading_bot.py:672: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+C:\TradingBot\nh_trading_bot.py:673: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
+  상태: box_forming
+
+오늘 NH 국내 누적손익: +0원
