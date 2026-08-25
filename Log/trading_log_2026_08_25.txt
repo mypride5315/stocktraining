@@ -11570,3 +11570,10 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
   last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
   [ONDS] 데이터 6행 수신 (세션: 2026-08-25)
   ONDS: 데이터 부족 (세션 초반이거나 휴장)
+
+오늘 국내 누적손익: +9,200원
+오늘 미국 누적손익(원화환산): +581원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-25 22:57:37.727413
+============================================================
+
