@@ -2687,3 +2687,18 @@ C:\TradingBot\auto_trading_bot.py:1168: DeprecationWarning: The 'generic' unit f
   229200: 대기 중 (현재가 13,765, 박스상단 13,945, VWAP 13,597) - 박스상단 미돌파
 
 [251340]
+C:\TradingBot\auto_trading_bot.py:1168: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  251340: 대기 중 (현재가 2,475, 박스상단 2,525, VWAP 2,499) - 박스상단 미돌파, VWAP 아래
+
+[379800]
+C:\TradingBot\auto_trading_bot.py:1168: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  379800: 보유 중 (진입가 23,830, 현재 23,840, 박스상단 23,825, VWAP 23,841, 손절가 23,592)
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-25 11:33:09.635452
+============================================================
+
