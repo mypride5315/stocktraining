@@ -508,7 +508,11 @@ def send_kakao_message(text):
 REASON_LABELS_KR = {
     "orb_vwap_breakout": "박스+VWAP 동시 돌파 매수",
     "take_profit": "익절 (목표 수익 도달)",
+    "take_profit_partial": "1차 분할 익절 (절반 매도, 잔여는 본전손절로 보유)",
+    "take_profit_partial_full": "익절 (1주라 분할 불가, 전량 익절)",
+    "take_profit_final": "2차 최종 익절 (잔여 물량 전량)",
     "stop_loss": "손절 (손실 제한)",
+    "vwap_breach": "VWAP 이탈 청산 (모멘텀 반전 방어)",
     "time_close": "장마감 강제청산",
     "emergency_carryover_close": "이월 포지션 비상매도",
 }
@@ -932,6 +936,9 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
     orb_bars_local = max(1, strategy["orb_minutes"] // 5)  # 미국은 봉개수 기반이라 분->봉개수 환산
     stop_pct_local = strategy["stop_pct"]
     tp_trigger_local = strategy["tp_trigger_pct"]
+    # tp_max_pct는 그동안 백테스트 전용이었으나, 분할청산 2차 목표로 실전에도 사용함.
+    # 아직 strategy_params.json에 없는 종목은 트리거의 4배를 기본값으로 사용(그리드서치 기본값과 동일 비율).
+    tp_max_local = strategy.get("tp_max_pct", tp_trigger_local * 4)
 
     pos = state["us_positions"].setdefault(ticker, {"in_position": False, "day_traded": False, "session": None})
 
@@ -1032,7 +1039,8 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
                     print(f"  {ticker}: 매수 주문이 거부되어 포지션을 열지 않습니다. 다음 주기에 재시도합니다.")
                 return
             pos.update({"in_position": True, "day_traded": True, "entry_price": buy_price,
-                        "shares": shares, "stop_price": buy_price * (1 - stop_pct_local),
+                        "shares": shares, "original_shares": shares, "partial_exit_done": False,
+                        "stop_price": buy_price * (1 - stop_pct_local),
                         "entry_time": datetime.now().isoformat(), "exchange": used_exchange,
                         "entry_fx_rate": trade_fx_rate})
             log_order("BUY_US", ticker, buy_price, shares, "orb_vwap_breakout")
@@ -1058,36 +1066,64 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
 
     if pos["in_position"]:
         entry_price = pos["entry_price"]; stop_price = pos["stop_price"]; shares = pos["shares"]
+        partial_done = pos.get("partial_exit_done", False)
         exit_reason = None
+        is_partial_exit = False  # True면 전량청산이 아니라 절반만 파는 1차 분할청산
+
         if latest["low"] <= stop_price:
-            exit_reason = "stop_loss"
+            exit_reason = "stop_loss"  # 1차 청산 후라면 stop_price가 본전이라 실질적 손실은 아님
+        elif latest["close"] > entry_price and latest["close"] < latest["vwap"]:
+            # ⚠️ 학술 연구(Zarattini et al. 2024/2025, Maroy 2025) 기반 규칙:
+            # 수익 중인데 가격이 VWAP 아래로 떨어지면 모멘텀 반전으로 보고 방어적 청산.
+            exit_reason = "vwap_breach"
         else:
             high_ret = (latest["high"] - entry_price) / entry_price
-            if high_ret >= tp_trigger_local:
-                exit_reason = "take_profit"
+            if not partial_done and high_ret >= tp_trigger_local:
+                # 1차 목표 도달: 절반만 익절하고, 나머지는 손절선을 본전으로 올려서 계속 보유
+                exit_reason = "take_profit_partial"
+                is_partial_exit = True
+            elif partial_done and high_ret >= tp_max_local:
+                # 2차 목표(익절 상한) 도달: 나머지 전량 청산
+                exit_reason = "take_profit_final"
             elif latest_et_time >= US_FORCE_CLOSE_ET:
                 exit_reason = "time_close"
 
         if exit_reason:
             sell_price = float(latest["close"])
-            print(f"  {ticker}: 청산 신호({exit_reason})! ${sell_price:.2f} x {shares}주")
-            result, used_exchange = place_us_order_smart(cfg, token, ticker, "sell", shares,
+            sell_qty = max(1, shares // 2) if is_partial_exit else shares
+            if is_partial_exit and sell_qty >= shares:
+                # 1주뿐이라 절반으로 못 나누는 경우 -> 그냥 전량 익절로 처리(분할 의미 없음)
+                exit_reason = "take_profit_partial_full"
+                is_partial_exit = False
+                sell_qty = shares
+
+            print(f"  {ticker}: 청산 신호({exit_reason})! ${sell_price:.2f} x {sell_qty}주"
+                  f"{' (분할청산, 잔여 계속 보유)' if is_partial_exit else ''}")
+            result, used_exchange = place_us_order_smart(cfg, token, ticker, "sell", sell_qty,
                                                            price=sell_price * 0.995,
                                                            known_exchange=pos.get("exchange"))
             if not result.get("success"):
                 print(f"  {ticker}: 매도 주문이 거부되었습니다 (계좌 권한 문제일 수 있음). "
                       f"포지션을 그대로 유지하고 다음 주기에 재시도합니다.")
                 return
-            pnl_usd = (sell_price - entry_price) * shares
+            pnl_usd = (sell_price - entry_price) * sell_qty
             trade_fx_rate = get_fx_rate_safe()  # 매매 시점의 실시간 환율로 계산
             pnl_krw = pnl_usd * trade_fx_rate
             state["daily_pnl_us"] = state.get("daily_pnl_us", 0) + pnl_krw
-            log_order("SELL_US", ticker, sell_price, shares, exit_reason, extra=f"pnl_krw={pnl_krw:.0f}")
+            log_order("SELL_US", ticker, sell_price, sell_qty, exit_reason, extra=f"pnl_krw={pnl_krw:.0f}")
             print(f"  {ticker}: 매도 체결 (현재가 ${latest['close']:.2f}, VWAP ${latest['vwap']:.2f}, "
                   f"손익 ${pnl_usd:+.2f} / {pnl_krw:+,.0f}원, 적용환율 {trade_fx_rate:.2f}원/달러)")
-            pos.update({"in_position": False})
+
+            if is_partial_exit:
+                # 잔여 물량 계속 보유: 손절선을 본전(진입가)으로 올려서 남은 절반은 무손실 보장
+                remaining = shares - sell_qty
+                pos.update({"shares": remaining, "partial_exit_done": True, "stop_price": entry_price})
+                print(f"  {ticker}: 잔여 {remaining}주 계속 보유 (손절선을 본전 ${entry_price:.2f}로 상향)")
+            else:
+                pos.update({"in_position": False})
         else:
-            print(f"  {ticker}: 보유 중 (진입가 ${entry_price:.2f}, 현재 ${latest['close']:.2f}, "
+            stage_label = "1차 익절 완료, 잔여 보유 중" if partial_done else "보유 중"
+            print(f"  {ticker}: {stage_label} (진입가 ${entry_price:.2f}, 현재 ${latest['close']:.2f}, "
                   f"박스상단 ${orb_high:.2f}, VWAP ${latest['vwap']:.2f}, 손절가 ${stop_price:.2f})")
         return
 
@@ -1125,6 +1161,7 @@ def process_ticker(ticker, cfg, token, state):
     orb_minutes_local = strategy["orb_minutes"]
     stop_pct_local = strategy["stop_pct"]
     tp_trigger_local = strategy["tp_trigger_pct"]
+    tp_max_local = strategy.get("tp_max_pct", tp_trigger_local * 4)
 
     now = datetime.now()
     pos = state["positions"].setdefault(ticker, {"in_position": False, "day_traded": False})
@@ -1206,7 +1243,8 @@ def process_ticker(ticker, cfg, token, state):
                     print(f"  {ticker}: 매수 주문이 거부되어 포지션을 열지 않습니다. 다음 주기에 재시도합니다.")
                 return
             pos.update({"in_position": True, "day_traded": True, "entry_price": buy_price,
-                        "shares": shares, "stop_price": buy_price*(1-stop_pct_local),
+                        "shares": shares, "original_shares": shares, "partial_exit_done": False,
+                        "stop_price": buy_price*(1-stop_pct_local),
                         "entry_time": now.isoformat()})
             log_order("BUY", ticker, buy_price, shares, "orb_vwap_breakout")
             print(f"  {ticker}: 매수 체결 (현재가 {latest['close']:,.0f}, 박스상단 {orb_high:,.0f}, "
@@ -1228,32 +1266,57 @@ def process_ticker(ticker, cfg, token, state):
         entry_price = pos["entry_price"]
         stop_price = pos["stop_price"]
         shares = pos["shares"]
+        partial_done = pos.get("partial_exit_done", False)
         exit_reason = None
+        is_partial_exit = False
 
         if latest["low"] <= stop_price:
             exit_reason = "stop_loss"
+        elif latest["close"] > entry_price and latest["close"] < latest["vwap"]:
+            # ⚠️ 학술 연구(Zarattini et al. 2024/2025, Maroy 2025) 기반 추가 규칙:
+            # 수익 중인데 가격이 VWAP 아래로 떨어지면, 고정 손절선까지 기다리지 않고
+            # "모멘텀이 꺾였다"는 신호로 미리 방어적으로 청산함.
+            exit_reason = "vwap_breach"
         else:
             high_ret = (latest["high"]-entry_price)/entry_price
-            if high_ret >= tp_trigger_local:
-                exit_reason = "take_profit"
+            if not partial_done and high_ret >= tp_trigger_local:
+                # 1차 목표 도달: 절반만 익절하고, 나머지는 손절선을 본전으로 올려서 계속 보유
+                exit_reason = "take_profit_partial"
+                is_partial_exit = True
+            elif partial_done and high_ret >= tp_max_local:
+                exit_reason = "take_profit_final"
             elif now.time() >= FORCE_CLOSE_TIME:
                 exit_reason = "time_close"
 
         if exit_reason:
             sell_price = latest["close"]
-            print(f"  {ticker}: 청산 신호({exit_reason})! {sell_price:,.0f}원 x {shares}주")
-            result = place_order(cfg, token, ticker, "sell", shares, price=0)
+            sell_qty = max(1, shares // 2) if is_partial_exit else shares
+            if is_partial_exit and sell_qty >= shares:
+                exit_reason = "take_profit_partial_full"
+                is_partial_exit = False
+                sell_qty = shares
+
+            print(f"  {ticker}: 청산 신호({exit_reason})! {sell_price:,.0f}원 x {sell_qty}주"
+                  f"{' (분할청산, 잔여 계속 보유)' if is_partial_exit else ''}")
+            result = place_order(cfg, token, ticker, "sell", sell_qty, price=0)
             if not result.get("success"):
                 print(f"  {ticker}: 매도 주문이 거부되었습니다. 포지션을 그대로 유지하고 다음 주기에 재시도합니다.")
                 return
-            pnl = (sell_price - entry_price) * shares
+            pnl = (sell_price - entry_price) * sell_qty
             state["daily_pnl"] = state.get("daily_pnl", 0) + pnl
-            log_order("SELL", ticker, sell_price, shares, exit_reason, extra=f"pnl={pnl:.0f}")
+            log_order("SELL", ticker, sell_price, sell_qty, exit_reason, extra=f"pnl={pnl:.0f}")
             print(f"  {ticker}: 매도 체결 (현재가 {latest['close']:,.0f}, VWAP {latest['vwap']:,.0f}, "
                   f"손익 {pnl:+,.0f}원)")
-            pos.update({"in_position": False})
+
+            if is_partial_exit:
+                remaining = shares - sell_qty
+                pos.update({"shares": remaining, "partial_exit_done": True, "stop_price": entry_price})
+                print(f"  {ticker}: 잔여 {remaining}주 계속 보유 (손절선을 본전 {entry_price:,.0f}원으로 상향)")
+            else:
+                pos.update({"in_position": False})
         else:
-            print(f"  {ticker}: 보유 중 (진입가 {entry_price:,.0f}, 현재 {latest['close']:,.0f}, "
+            stage_label = "1차 익절 완료, 잔여 보유 중" if partial_done else "보유 중"
+            print(f"  {ticker}: {stage_label} (진입가 {entry_price:,.0f}, 현재 {latest['close']:,.0f}, "
                   f"박스상단 {orb_high:,.0f}, VWAP {latest['vwap']:,.0f}, 손절가 {stop_price:,.0f})")
         return
 
@@ -2001,20 +2064,56 @@ def opt_simulate_day(day_df, orb_bars, stop_pct, tp_trigger_pct, tp_max_pct):
     entry_row = rest.iloc[entry_idx]
     buy_price = entry_row["close"]
     stop_price = buy_price * (1 - stop_pct)
-    after = rest.iloc[entry_idx + 1:]
-    ret = None
-    for _, row in after.iterrows():
+    after = rest.iloc[entry_idx + 1:].reset_index(drop=True)
+
+    # ── 1단계: 1차 목표(tp_trigger) 도달 전까지 시뮬레이션 ──
+    stage1_ret = None
+    partial_hit_idx = None
+    for i in range(len(after)):
+        row = after.iloc[i]
         if row["low"] <= stop_price:
-            ret = -stop_pct
+            stage1_ret = -stop_pct  # 분할 전 손절 -> 전량 손절과 동일
+            break
+        if row["close"] > buy_price and row["close"] < row["vwap"]:
+            stage1_ret = (row["close"] - buy_price) / buy_price  # 분할 전 VWAP 이탈 -> 전량 청산
             break
         high_ret = (row["high"] - buy_price) / buy_price
         if high_ret >= tp_trigger_pct:
-            ret = min(high_ret, tp_max_pct)
+            stage1_ret = tp_trigger_pct  # 1차 목표 도달, 절반 익절 확정
+            partial_hit_idx = i
             break
-    if ret is None:
+
+    if stage1_ret is None:
+        # 1차 목표에 끝내 도달 못 함(당일 마감) -> 분할 없이 그날 종가로 정리
         last = df.iloc[-1]
         close_ret = (last["close"] - buy_price) / buy_price
         ret = -stop_pct if close_ret <= -stop_pct else close_ret
+        return ret * 100
+
+    if partial_hit_idx is None:
+        # 1차 목표 도달 전에 손절/VWAP이탈로 전량 청산된 경우 -> 분할 없이 그대로 확정
+        return stage1_ret * 100
+
+    # ── 2단계: 잔여 절반은 손절선을 본전(0%)으로 올리고, tp_max 또는 VWAP이탈/장마감까지 진행 ──
+    stage2_ret = None
+    remaining = after.iloc[partial_hit_idx + 1:]
+    for _, row in remaining.iterrows():
+        if row["low"] <= buy_price:
+            stage2_ret = 0.0  # 본전 손절(무손실)
+            break
+        if row["close"] > buy_price and row["close"] < row["vwap"]:
+            stage2_ret = (row["close"] - buy_price) / buy_price
+            break
+        high_ret = (row["high"] - buy_price) / buy_price
+        if high_ret >= tp_max_pct:
+            stage2_ret = tp_max_pct
+            break
+    if stage2_ret is None:
+        last = df.iloc[-1]
+        close_ret = (last["close"] - buy_price) / buy_price
+        stage2_ret = max(close_ret, 0.0)  # 본전손절이 이미 걸려있으므로 음수는 되지 않는다고 가정
+
+    ret = 0.5 * stage1_ret + 0.5 * stage2_ret
     return ret * 100
 
 
