@@ -36,6 +36,7 @@ import os
 import json
 import time
 import requests
+from contextlib import contextmanager
 from datetime import datetime, timedelta, time as dtime
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -54,6 +55,25 @@ KAKAO_TOKEN_PATH = os.path.join(BASE_DIR, "kakao_token.json")
 
 MOCK_BASE_URL = "https://moapi.nhplug.com:8443"
 REAL_BASE_URL = "https://api.nhplug.com:8443"
+
+
+@contextmanager
+def _live_quote_server():
+    """시세 조회 동안만 일시적으로 운영(api.nhplug.com) 서버로 전환하고, 끝나면
+    (성공/실패/예외 어떤 경우든) 반드시 호출 전 값(보통 모의투자)으로 복원함.
+    나무Plug 공식 답변(2026-08-23): 모의투자(moapi) 환경은 시세 정보 자체를
+    제공하지 않아서, 국내/해외 시세조회 함수 전부 이 컨텍스트 안에서만 호출함.
+    주문 함수들은 이 컨텍스트 밖에서 실행되므로 항상 원래 서버(모의투자)를 그대로 씀."""
+    original_base_url = os.environ.get("NHPLUG_BASE_URL")
+    os.environ["NHPLUG_BASE_URL"] = REAL_BASE_URL
+    try:
+        yield
+    finally:
+        if original_base_url is None:
+            os.environ.pop("NHPLUG_BASE_URL", None)
+        else:
+            os.environ["NHPLUG_BASE_URL"] = original_base_url
+
 
 MARKET_OPEN = dtime(9, 0)
 MARKET_CLOSE = dtime(15, 30)
@@ -272,13 +292,15 @@ def load_nh_config():
 
 def get_current_price(ticker: str, market_cd: str = "KRX"):
     """국내주식 현재가 조회 (README에서 확인된 정확한 사용법 그대로)
-    market_cd: KRX(코스피/코스닥 통합) 등"""
+    market_cd: KRX(코스피/코스닥 통합) 등
+    ⚠️ 나무Plug 공식 답변: 모의투자(moapi)는 시세 정보를 제공하지 않아서,
+    _live_quote_server()로 이 호출 동안만 운영 서버로 전환함(끝나면 복원)."""
     if not NHPLUG_AVAILABLE:
         print("[오류] nhplug 패키지 미설치로 조회 불가")
         return None
     try:
-        result = call("/krstock/quote/v1/currentPrice", {"iem_cd": ticker, "market_cd": market_cd})
-        return result
+        with _live_quote_server():
+            return call("/krstock/quote/v1/currentPrice", {"iem_cd": ticker, "market_cd": market_cd})
     except Exception as e:
         print(f"[오류] 시세 조회 실패: {e}")
         return None
@@ -300,40 +322,30 @@ def get_us_current_price(ticker: str):
 
     ⚠️ 나무Plug 공식 답변(2026-08-23 확인): 모의투자(moapi) 환경은 시세 정보 자체를
     제공하지 않으며, 시세는 반드시 실거래(운영, api.nhplug.com) 서버로 조회해야 함.
-    그래서 이 함수 "안에서만" 일시적으로 NHPLUG_BASE_URL을 운영 서버로 바꿔서 조회하고,
-    끝나면(성공/실패/예외 어떤 경우든) 반드시 원래 값(호출 전 설정, 보통 모의투자)으로
-    복원함 - try/finally라 도중에 예외가 나도 복원이 보장됨.
-    주문(order_us_buy/order_us_sell 등)은 이 함수와 무관하게 항상 그 시점의
-    NHPLUG_BASE_URL을 그대로 쓰므로, 이 함수 호출 전후로 계속 모의투자 서버를 씀."""
+    그래서 _live_quote_server()로 이 호출 동안만 운영 서버로 전환하고 끝나면 복원함.
+    주문(order_us_buy/order_us_sell 등)은 이 컨텍스트 밖에서 실행되므로 항상
+    그 시점의 NHPLUG_BASE_URL(모의투자)을 그대로 씀."""
     if not NHPLUG_AVAILABLE:
         return None
 
-    original_base_url = os.environ.get("NHPLUG_BASE_URL")
-    os.environ["NHPLUG_BASE_URL"] = REAL_BASE_URL
-    try:
-        max_attempts = 3
-        for attempt in range(1, max_attempts + 1):
-            try:
-                payload = {"iem_cd": ticker}
-                print(f"  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker={ticker!r}, "
-                      f"payload={payload!r}, APP_KEY 앞8자리={os.environ.get('NHPLUG_APP_KEY', '(없음)')[:8]}")
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            payload = {"iem_cd": ticker}
+            print(f"  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker={ticker!r}, "
+                  f"payload={payload!r}, APP_KEY 앞8자리={os.environ.get('NHPLUG_APP_KEY', '(없음)')[:8]}")
+            with _live_quote_server():
                 return call("/gbstock/quote/v1/current", payload)
-            except Exception as e:
-                is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
-                if is_rate_limit and attempt < max_attempts:
-                    wait_sec = 1.5 * attempt
-                    print(f"  [경고] 해외 시세 조회 rate_limit, {wait_sec:.1f}초 대기 후 재시도 "
-                          f"({attempt}/{max_attempts - 1})")
-                    time.sleep(wait_sec)
-                    continue
-                print(f"  [오류] 해외 시세 조회 실패: {e}")
-                return None
-    finally:
-        # 예외가 나든 정상 반환이든 항상 실행됨 - 원래 환경(보통 모의투자)으로 반드시 복원
-        if original_base_url is None:
-            os.environ.pop("NHPLUG_BASE_URL", None)
-        else:
-            os.environ["NHPLUG_BASE_URL"] = original_base_url
+        except Exception as e:
+            is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
+            if is_rate_limit and attempt < max_attempts:
+                wait_sec = 1.5 * attempt
+                print(f"  [경고] 해외 시세 조회 rate_limit, {wait_sec:.1f}초 대기 후 재시도 "
+                      f"({attempt}/{max_attempts - 1})")
+                time.sleep(wait_sec)
+                continue
+            print(f"  [오류] 해외 시세 조회 실패: {e}")
+            return None
 
 
 def get_us_buyable_amount(act_no: str, ticker: str, price: float = None) -> dict:
@@ -618,6 +630,8 @@ def fetch_today_minute_bars(iem_cd: str, market_cd: str = "KRX", xtick: str = "5
     ⚠️ xtick 기본값을 "1"(1분봉)에서 "5"(5분봉)로 변경함. 1분봉×120개=2시간치뿐이라,
        장 시작(09:00)~박스구간(09:00~09:30) 데이터가 11시 넘어가면 조회범위에서 밀려나
        박스를 영영 못 만드는 문제가 있었음. 5분봉×120개=10시간치라 장 마감까지 항상 커버함.
+    ⚠️ 나무Plug 공식 답변: 모의투자(moapi)는 시세 정보를 제공하지 않아서,
+    _live_quote_server()로 이 호출 동안만 운영 서버로 전환함(끝나면 복원).
     반환: datetime, open, high, low, close, volume 컬럼의 DataFrame (과거->현재 순 정렬)"""
     if not NHPLUG_AVAILABLE:
         print("[오류] nhplug 패키지 미설치로 조회 불가")
@@ -629,15 +643,16 @@ def fetch_today_minute_bars(iem_cd: str, market_cd: str = "KRX", xtick: str = "5
     result = None
     for attempt in range(1, max_attempts + 1):
         try:
-            result = call("/krstock/quote/v1/period", {
-                "market_cd": market_cd,
-                "iem_cd": iem_cd,
-                "gubun": "5",           # 5=분봉
-                "xtick": xtick,         # 분 단위 (예: "1"=1분봉)
-                "today_cls_code": "1",  # 당일만조회
-                "array_cnt": array_cnt,
-                "fake_tick": "1",       # 거래량0봉 제외
-            })
+            with _live_quote_server():
+                result = call("/krstock/quote/v1/period", {
+                    "market_cd": market_cd,
+                    "iem_cd": iem_cd,
+                    "gubun": "5",           # 5=분봉
+                    "xtick": xtick,         # 분 단위 (예: "1"=1분봉)
+                    "today_cls_code": "1",  # 당일만조회
+                    "array_cnt": array_cnt,
+                    "fake_tick": "1",       # 거래량0봉 제외
+                })
             break
         except Exception as e:
             is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
