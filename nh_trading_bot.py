@@ -293,27 +293,47 @@ def get_current_price(ticker: str, market_cd: str = "KRX"):
 # ============================================================
 def get_us_current_price(ticker: str):
     """해외주식 현재가 조회 (POST /gbstock/quote/v1/current).
-    ⚠️ 공식 샘플(current_price("AAPL"))은 iem_cd만 보내는데, 이는 나스닥(AAPL) 종목만
-    테스트된 것으로 보임. 실제로 NYSE 종목(NU, PATH, NOK 등)은 iem_cd만으로는
-    "IGW40019 종목코드를 확인해주세요" 오류가 나서, 다른 gbstock API들과 동일하게
-    fc_sec_trd_nat_cd(국가코드, 200=미국)를 명시적으로 포함시킴.
-    rate_limit(IGW42903)은 순간적인 초과라 짧게 대기 후 재시도함."""
+    ⚠️ nhplug-sdk 공식 예제(current_price.py)에서 확인된 정확한 스펙: iem_cd 딱 하나만 보냄.
+    이전에 fc_sec_trd_nat_cd(국가코드)를 추가로 넣었었는데, 공식 스펙엔 이 필드가 아예 없어서
+    오히려 모든 종목이 "IGW40019 종목코드를 확인해주세요" 오류로 거부되고 있었음. 제거함.
+    rate_limit(IGW42903)은 순간적인 초과라 짧게 대기 후 재시도함.
+
+    ⚠️ 나무Plug 공식 답변(2026-08-23 확인): 모의투자(moapi) 환경은 시세 정보 자체를
+    제공하지 않으며, 시세는 반드시 실거래(운영, api.nhplug.com) 서버로 조회해야 함.
+    그래서 이 함수 "안에서만" 일시적으로 NHPLUG_BASE_URL을 운영 서버로 바꿔서 조회하고,
+    끝나면(성공/실패/예외 어떤 경우든) 반드시 원래 값(호출 전 설정, 보통 모의투자)으로
+    복원함 - try/finally라 도중에 예외가 나도 복원이 보장됨.
+    주문(order_us_buy/order_us_sell 등)은 이 함수와 무관하게 항상 그 시점의
+    NHPLUG_BASE_URL을 그대로 쓰므로, 이 함수 호출 전후로 계속 모의투자 서버를 씀."""
     if not NHPLUG_AVAILABLE:
         return None
-    max_attempts = 3
-    for attempt in range(1, max_attempts + 1):
-        try:
-            return call("/gbstock/quote/v1/current", {"iem_cd": ticker, "fc_sec_trd_nat_cd": US_NAT_CD})
-        except Exception as e:
-            is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
-            if is_rate_limit and attempt < max_attempts:
-                wait_sec = 1.5 * attempt
-                print(f"  [경고] 해외 시세 조회 rate_limit, {wait_sec:.1f}초 대기 후 재시도 "
-                      f"({attempt}/{max_attempts - 1})")
-                time.sleep(wait_sec)
-                continue
-            print(f"  [오류] 해외 시세 조회 실패: {e}")
-            return None
+
+    original_base_url = os.environ.get("NHPLUG_BASE_URL")
+    os.environ["NHPLUG_BASE_URL"] = REAL_BASE_URL
+    try:
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                payload = {"iem_cd": ticker}
+                print(f"  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker={ticker!r}, "
+                      f"payload={payload!r}, APP_KEY 앞8자리={os.environ.get('NHPLUG_APP_KEY', '(없음)')[:8]}")
+                return call("/gbstock/quote/v1/current", payload)
+            except Exception as e:
+                is_rate_limit = "IGW42903" in str(e) or "rate_limit" in str(e).lower()
+                if is_rate_limit and attempt < max_attempts:
+                    wait_sec = 1.5 * attempt
+                    print(f"  [경고] 해외 시세 조회 rate_limit, {wait_sec:.1f}초 대기 후 재시도 "
+                          f"({attempt}/{max_attempts - 1})")
+                    time.sleep(wait_sec)
+                    continue
+                print(f"  [오류] 해외 시세 조회 실패: {e}")
+                return None
+    finally:
+        # 예외가 나든 정상 반환이든 항상 실행됨 - 원래 환경(보통 모의투자)으로 반드시 복원
+        if original_base_url is None:
+            os.environ.pop("NHPLUG_BASE_URL", None)
+        else:
+            os.environ["NHPLUG_BASE_URL"] = original_base_url
 
 
 def get_us_buyable_amount(act_no: str, ticker: str, price: float = None) -> dict:
@@ -588,13 +608,16 @@ def get_sellable_quantity(act_no: str, iem_cd: str, cfd_lon_cd: str = "00", lon_
     return call("/krstock/inquiry/v1/sellableQuantity", input_0)
 
 
-def fetch_today_minute_bars(iem_cd: str, market_cd: str = "KRX", xtick: str = "1",
+def fetch_today_minute_bars(iem_cd: str, market_cd: str = "KRX", xtick: str = "5",
                              array_cnt: str = "120") -> pd.DataFrame:
     """오늘 분봉 데이터 조회 (POST /krstock/quote/v1/period, gubun=5 분봉)
     ⚠️ nhplug-sdk 저장소에는 이 엔드포인트의 예제 스니펫이 없어서 공식 명세(docs/krstock/openapi.json,
        scripts/fetch_docs.py로 www.nhplug.com에서 직접 내려받아 확인)만 보고 구현함.
        명세 자체에도 "Output_0는 Array로 선언됐지만 예시 응답은 Object"라는 경고가 있으므로
        실전에 쓰기 전에 반드시 실제 응답으로 한 번 검증해야 함.
+    ⚠️ xtick 기본값을 "1"(1분봉)에서 "5"(5분봉)로 변경함. 1분봉×120개=2시간치뿐이라,
+       장 시작(09:00)~박스구간(09:00~09:30) 데이터가 11시 넘어가면 조회범위에서 밀려나
+       박스를 영영 못 만드는 문제가 있었음. 5분봉×120개=10시간치라 장 마감까지 항상 커버함.
     반환: datetime, open, high, low, close, volume 컬럼의 DataFrame (과거->현재 순 정렬)"""
     if not NHPLUG_AVAILABLE:
         print("[오류] nhplug 패키지 미설치로 조회 불가")
@@ -669,7 +692,10 @@ def check_orb_vwap_signal(df: pd.DataFrame, orb_minutes: int = 30) -> dict:
     df = df.copy()
     df["vwap"] = calc_vwap(df)
 
-    open_dt = df["datetime"].iloc[0].normalize() + pd.Timedelta(hours=9)
+    # ⚠️ 예전엔 .normalize() + Timedelta 조합에서 NumPy DeprecationWarning이 발생했음.
+    # 날짜만 뽑아서 Timestamp를 새로 만드는 방식으로 교체해 경고 없이 동일한 결과를 얻음.
+    first_date = df["datetime"].iloc[0].date()
+    open_dt = pd.Timestamp(first_date) + pd.Timedelta(hours=9)
     range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
     opening = df[df["datetime"] < range_end]
 
