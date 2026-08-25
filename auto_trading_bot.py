@@ -155,8 +155,8 @@ def _mark_weekly_ran_today():
         f.write(_dt.now().strftime("%Y-%m-%d"))
 
 
-_explicit_long_mode = any(a in sys.argv for a in ("--screen", "--optimize", "--weekly"))
-_auto_weekly_now = ("--screen" not in sys.argv and "--optimize" not in sys.argv and "--weekly" not in sys.argv
+_explicit_long_mode = any(a in sys.argv for a in ("--screen", "--screen-kr", "--screen-us", "--optimize", "--weekly"))
+_auto_weekly_now = (not _explicit_long_mode
                      and _is_weekly_auto_window_now() and not _weekly_already_ran_today())
 _is_long_running_mode = _explicit_long_mode or _auto_weekly_now
 _watchdog_timeout = 1200 if _is_long_running_mode else 240
@@ -1854,7 +1854,10 @@ def screen_analyze_us_ticker(ticker: str):
             "last_price": round(last_price, 2), "reasons": "; ".join(reasons)}
 
 
-def screen_write_watchlist(df_result, top_kr=5, top_us=5):
+def screen_write_watchlist(df_result, top_kr=5, top_us=5, market="both"):
+    """market: "both"(기본, 기존 --weekly/--screen 방식) | "kr" | "us"
+    "kr"/"us"로 호출하면, watchlist.json에서 해당 시장 부분만 새로 쓰고
+    다른 시장 데이터는 기존 파일 내용을 그대로 보존함 (일일 개별 재선정용)."""
     # 종목당 투입금액(CAPITAL_PER_TICKER_KRW)으로 1주도 못 사는 종목은 애초에 후보에서 제외.
     # -> 순위표에서 그냥 빠지고, 다음 순위 종목이 자연스럽게 그 자리를 채우게 됨
     # (매매 당일 "자금 부족"으로 기회를 날리는 것보다, 선정 단계에서 미리 걸러내는 게 안전함)
@@ -1896,12 +1899,34 @@ def screen_write_watchlist(df_result, top_kr=5, top_us=5):
 
     kr_rows = df_result[df_result["market"] == "KR"].head(top_kr)
     us_rows = df_result[df_result["market"] == "US"].head(top_us)
+
+    # 기존 watchlist.json을 먼저 읽어둠 -> market="kr"/"us"로 부분 갱신할 때
+    # 안 건드리는 쪽(예: us_tickers)은 기존 값을 그대로 보존하기 위함
+    existing = {"kr_tickers": {}, "us_tickers": {}, "kr_generated_at": None, "us_generated_at": None}
+    if os.path.exists(WATCHLIST_PATH):
+        try:
+            with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+            existing["kr_tickers"] = existing_data.get("kr_tickers", {})
+            existing["us_tickers"] = existing_data.get("us_tickers", {})
+            existing["kr_generated_at"] = existing_data.get("kr_generated_at", existing_data.get("generated_at"))
+            existing["us_generated_at"] = existing_data.get("us_generated_at", existing_data.get("generated_at"))
+        except Exception as e:
+            print(f"  [알림] 기존 watchlist.json 읽기 실패({e}), 빈 상태로 시작합니다.")
+
+    new_kr = {row["ticker"]: {"account_prdt_cd": "01", "name": row.get("name", ""), "score": row["score"]}
+              for _, row in kr_rows.iterrows()} if market in ("both", "kr") else existing["kr_tickers"]
+    new_us = {row["ticker"]: {"exchange": "AMEX", "score": row["score"], "name": row.get("name", row["ticker"])}
+              for _, row in us_rows.iterrows()} if market in ("both", "us") else existing["us_tickers"]
+
     watchlist = {
         "generated_at": datetime.now().isoformat(),
-        "kr_tickers": {row["ticker"]: {"account_prdt_cd": "01", "name": row.get("name", ""), "score": row["score"]}
-                       for _, row in kr_rows.iterrows()},
-        "us_tickers": {row["ticker"]: {"exchange": "AMEX", "score": row["score"], "name": row.get("name", row["ticker"])}
-                       for _, row in us_rows.iterrows()},
+        "kr_generated_at": datetime.now().isoformat() if market in ("both", "kr")
+            else existing.get("kr_generated_at", datetime.now().isoformat()),
+        "us_generated_at": datetime.now().isoformat() if market in ("both", "us")
+            else existing.get("us_generated_at", datetime.now().isoformat()),
+        "kr_tickers": new_kr,
+        "us_tickers": new_us,
     }
 
     def _is_valid_key(k):
@@ -1924,13 +1949,21 @@ def screen_write_watchlist(df_result, top_kr=5, top_us=5):
         return
 
     print(f"\n[연동용 파일 저장] {WATCHLIST_PATH}")
-    print(f"  국내 {len(watchlist['kr_tickers'])}종목: {', '.join(watchlist['kr_tickers'].keys())}")
-    print(f"  미국 {len(watchlist['us_tickers'])}종목: {', '.join(watchlist['us_tickers'].keys())}")
+    if market in ("both", "kr"):
+        print(f"  국내 {len(watchlist['kr_tickers'])}종목(신규 갱신): {', '.join(watchlist['kr_tickers'].keys())}")
+    else:
+        print(f"  국내 {len(watchlist['kr_tickers'])}종목(기존 유지): {', '.join(watchlist['kr_tickers'].keys())}")
+    if market in ("both", "us"):
+        print(f"  미국 {len(watchlist['us_tickers'])}종목(신규 갱신): {', '.join(watchlist['us_tickers'].keys())}")
+    else:
+        print(f"  미국 {len(watchlist['us_tickers'])}종목(기존 유지): {', '.join(watchlist['us_tickers'].keys())}")
 
 
-def run_screening_mode():
+def run_screening_mode(market="both"):
+    """market: "both"(기존 --screen/--weekly) | "kr"(국내만, 일일 재선정용) | "us"(미국만, 일일 재선정용)"""
+    label = {"both": "국내+미국 통합", "kr": "국내만", "us": "미국만"}[market]
     print("=" * 70)
-    print(" [--screen] 국내+미국 통합 ORB+VWAP 적합 종목 자동 추천")
+    print(f" [--screen] {label} ORB+VWAP 적합 종목 자동 추천")
     print("=" * 70)
 
     all_results = []
@@ -1938,43 +1971,45 @@ def run_screening_mode():
     token = get_token(cfg)
     print("토큰 준비 완료")
 
-    print("\n[국내 종목 분석]")
-    kr_top_n = 15
-    kr_candidates, err = screen_fetch_top_traded_stocks(cfg, token, top_n=kr_top_n)
-    if kr_candidates is None:
-        print(f"국내 자동 조회 실패({err}). 국내 종목은 건너뜁니다.")
-    else:
-        print(f"국내 후보: {', '.join(f'{n}({c})' for c, n in kr_candidates)}\n")
-        for t, n in kr_candidates:
-            print(f"  [국내] {n}({t}) 조회 중...")
-            df, err = screen_fetch_daily_chart(cfg, token, t)
-            time_module.sleep(2.0)
-            if err:
-                print(f"    실패: {err}")
-                all_results.append({"ticker": t, "name": n, "market": "KR", "error": err})
-                continue
-            r = screen_score_kr(df, period_div_code="D")
-            r["ticker"] = t
-            r["name"] = n
-            all_results.append(r)
-
-    print("\n[미국 종목 분석]")
-    if yf is None:
-        print("yfinance가 없어 미국 종목 분석을 건너뜁니다.")
-    else:
-        raw_df, err = screen_fetch_most_active_us_stocks()
-        if raw_df is None:
-            print(f"미국 자동 조회 실패({err}). 미국 종목은 건너뜁니다.")
+    if market in ("both", "kr"):
+        print("\n[국내 종목 분석]")
+        kr_top_n = 15
+        kr_candidates, err = screen_fetch_top_traded_stocks(cfg, token, top_n=kr_top_n)
+        if kr_candidates is None:
+            print(f"국내 자동 조회 실패({err}). 국내 종목은 건너뜁니다.")
         else:
-            filtered = screen_filter_us_candidates(raw_df)
-            us_tickers = filtered["symbol"].tolist()
-            print(f"미국 후보: {', '.join(us_tickers)}\n")
-            for t in us_tickers:
-                print(f"  [미국] {t} 조회 중...")
-                r = screen_analyze_us_ticker(t)
-                if "error" in r:
-                    print(f"    실패: {r['error']}")
+            print(f"국내 후보: {', '.join(f'{n}({c})' for c, n in kr_candidates)}\n")
+            for t, n in kr_candidates:
+                print(f"  [국내] {n}({t}) 조회 중...")
+                df, err = screen_fetch_daily_chart(cfg, token, t)
+                time_module.sleep(2.0)
+                if err:
+                    print(f"    실패: {err}")
+                    all_results.append({"ticker": t, "name": n, "market": "KR", "error": err})
+                    continue
+                r = screen_score_kr(df, period_div_code="D")
+                r["ticker"] = t
+                r["name"] = n
                 all_results.append(r)
+
+    if market in ("both", "us"):
+        print("\n[미국 종목 분석]")
+        if yf is None:
+            print("yfinance가 없어 미국 종목 분석을 건너뜁니다.")
+        else:
+            raw_df, err = screen_fetch_most_active_us_stocks()
+            if raw_df is None:
+                print(f"미국 자동 조회 실패({err}). 미국 종목은 건너뜁니다.")
+            else:
+                filtered = screen_filter_us_candidates(raw_df)
+                us_tickers = filtered["symbol"].tolist()
+                print(f"미국 후보: {', '.join(us_tickers)}\n")
+                for t in us_tickers:
+                    print(f"  [미국] {t} 조회 중...")
+                    r = screen_analyze_us_ticker(t)
+                    if "error" in r:
+                        print(f"    실패: {r['error']}")
+                    all_results.append(r)
 
     valid = [r for r in all_results if "error" not in r]
     errors = [r for r in all_results if "error" in r]
@@ -1996,7 +2031,7 @@ def run_screening_mode():
     df_result = df_result.sort_values("score", ascending=False).reset_index(drop=True)
 
     print("\n" + "=" * 70)
-    print(" 국내+미국 통합 스크리닝 결과 (점수 높은 순)")
+    print(f" {label} 스크리닝 결과 (점수 높은 순)")
     print("=" * 70)
     for _, r in df_result.iterrows():
         name_val = r.get("name")
@@ -2038,7 +2073,7 @@ def run_screening_mode():
     _safe_to_csv(df_result, week_log_path, "주간 이력 로그")
 
     # watchlist.json 저장은 가장 중요한 산출물이므로, 위 CSV 저장이 실패해도 반드시 실행됨
-    screen_write_watchlist(df_result)
+    screen_write_watchlist(df_result, market=market)
 
 
 # ============================================================
@@ -2379,6 +2414,12 @@ def _dispatch_mode():
         print(" 스크리닝 종료, 이어서 재최적화를 시작합니다")
         print("=" * 70 + "\n")
         run_optimization_mode()
+    elif "--screen-kr" in args:
+        print(">>> --screen-kr 모드: 국내 종목만 매일 재선정합니다 (미국 종목은 그대로 유지).\n")
+        run_screening_mode(market="kr")
+    elif "--screen-us" in args:
+        print(">>> --screen-us 모드: 미국 종목만 매일 재선정합니다 (국내 종목은 그대로 유지).\n")
+        run_screening_mode(market="us")
     elif "--screen" in args:
         run_screening_mode()
     elif "--optimize" in args:
