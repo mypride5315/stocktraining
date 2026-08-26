@@ -869,6 +869,24 @@ def place_us_order_smart(cfg, token, ticker, side, qty, price, known_exchange=No
     return result, None
 
 
+def get_real_current_et_time():
+    """지금 이 순간의 실제 미국 동부시각(ET)을 반환.
+    ⚠️ 장마감(강제청산) 판단은 반드시 이 함수로 얻은 '진짜 지금 시각'을 써야 함.
+    yfinance가 가져온 데이터의 마지막 봉 시각을 대신 쓰면, 아직 오늘 장이 열리기 전이라
+    오늘자 봉이 하나도 없는 경우(예: 절전모드에서 막 깨어난 직후) 어쩔 수 없이 "어제 마지막 봉"이
+    반환되는데, 그 시각(예: 어제 15:55)이 우연히 장마감 기준시각(15:50)을 넘겨버려서
+    "이미 장마감 지났다"고 완전히 잘못 판단해 엉뚱한 청산을 시도하는 버그가 있었음
+    (실제로 2026-08-26에 이 버그로 PATH/NU 청산이 반복 실패하며 확인됨).
+    """
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("America/New_York")).time()
+    except Exception:
+        # zoneinfo를 못 쓰는 극히 드문 환경 대비 폴백: UTC-4(서머타임 기준) 근사치 사용
+        # (서머타임이 아닌 겨울철엔 최대 1시간 오차가 날 수 있으나, 완전히 틀린 판단보다는 훨씬 안전함)
+        return (datetime.utcnow() - timedelta(hours=4)).time()
+
+
 def fetch_us_session_data(ticker):
     """yfinance로 현재 진행 중인 미국 세션의 5분봉을 가져옴 (검증된 방식)"""
     if yf is None:
@@ -1005,15 +1023,18 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
     df["vwap"] = calc_vwap(df)
     df["rsi"] = calc_rsi(df)
     latest = df.iloc[-1]
-    latest_et_time = latest["datetime"].time()  # 미국 종목 데이터는 원본(미국 동부시간) 그대로 유지됨
+    latest_et_time = latest["datetime"].time()  # 미국 종목 데이터는 원본(미국 동부시간) 그대로 유지됨 (가격/VWAP 계산용)
+    # ⚠️ 장마감(강제청산) 판단만큼은 위 latest_et_time이 아니라 '진짜 지금 시각'을 써야 함.
+    # 이유는 get_real_current_et_time() 함수 설명 참고.
+    real_et_now = get_real_current_et_time()
     capital_usd = CAPITAL_PER_TICKER_KRW / state.get("fx_rate", 1350)
 
     if not pos["in_position"] and not pos["day_traded"]:
         if state["daily_pnl_us"] <= -CIRCUIT_BREAKER_KRW:
             print(f"  {ticker}: 서킷브레이커 발동, 신규 진입 안 함")
             return
-        if latest_et_time >= US_FORCE_CLOSE_ET:
-            print(f"  {ticker}: 장마감 임박(미국 동부시간 {latest_et_time}), 신규 진입 안 함")
+        if real_et_now >= US_FORCE_CLOSE_ET:
+            print(f"  {ticker}: 장마감 임박(미국 동부시간 {real_et_now}), 신규 진입 안 함")
             return
         # RSI가 아직 계산 안 됐으면(데이터 부족) 필터 없이 통과, 계산됐으면 과매수 여부 확인
         rsi_ok = pd.isna(latest["rsi"]) or latest["rsi"] < RSI_OVERBOUGHT_THRESHOLD
@@ -1085,7 +1106,7 @@ def process_us_ticker(ticker, exchange, cfg, token, state):
             elif partial_done and high_ret >= tp_max_local:
                 # 2차 목표(익절 상한) 도달: 나머지 전량 청산
                 exit_reason = "take_profit_final"
-            elif latest_et_time >= US_FORCE_CLOSE_ET:
+            elif real_et_now >= US_FORCE_CLOSE_ET:
                 exit_reason = "time_close"
 
         if exit_reason:
