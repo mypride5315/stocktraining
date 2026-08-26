@@ -1270,3 +1270,10 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
   last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
   [SPCX] 데이터 11행 수신 (세션: 2026-08-26)
   SPCX: 대기 중 (현재가 $136.41, 박스상단 $138.17, VWAP $137.13, RSI 계산불가(데이터부족)) - 박스상단 미돌파, VWAP 아래
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +187원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-26 23:22:38.071583
+============================================================
+
