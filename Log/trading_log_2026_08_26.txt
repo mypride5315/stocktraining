@@ -4,3 +4,214 @@
  파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
  파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
  스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+
+============================================================
+ 실행 시각: 2026-08-26 21:21:24.509189
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+
+============================================================
+ 실행 시각: 2026-08-26 21:21:24.945928
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-26 21:21:25.568640
+============================================================
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+
+>>> --screen-us 모드: 미국 종목만 매일 재선정합니다 (국내 종목은 그대로 유지).
+
+======================================================================
+ [--screen] 미국만 ORB+VWAP 적합 종목 자동 추천
+======================================================================C:\TradingBot\auto_trading_bot.py:1148: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+적용 환율: 1382.8원/달러
+
+국내장/미국장 모두 시간이 아닙니다. 종료합니다.
+토큰 준비 완료
+
+
+[미국 종목 분석]
+오늘 국내 누적손익: +0원
+
+오늘 미국 누적손익(원화환산): +0원
+>>> --screen-kr 모드: 국내 종목만 매일 재선정합니다 (미국 종목은 그대로 유지).
+
+======================================================================
+ [--screen] 국내만 ORB+VWAP 적합 종목 자동 추천
+======================================================================
+토큰 준비 완료
+
+[국내 종목 분석]
+국내 후보: KODEX 200선물인버스2X(252670), KODEX 인버스(114800), TIGER 200선물인버스2X(252710), KODEX 코스닥150레버리지(233740), KODEX 2차전지산업레버리지(462330), KODEX 코스닥150선물인버스(251340), TIGER 미국S&P500(360750), 삼성 인버스 2X 코스닥150 선물 ETN(Q530107), KODEX 미국나스닥100(379810), KODEX SK하이닉스단일종목레버리지(0193T0), 신라젠(215600), KODEX 코스닥150(229200), KODEX 미국S&P500(379800), KODEX 200(069500), 대우건설(047040)
+
+  [국내] KODEX 200선물인버스2X(252670) 조회 중...
+    [대기] 초당 호출 제한, 2초 후 재시도 (1/5)
+  [미국] 필터링: 20개 -> 8개 (시가총액 5억달러 이상, 주가 $5.0 이상)
+미국 후보: NVDA, INTC, NU, PATH, AAL, BMNR, SMR, SPCX
+
+  [미국] NVDA 조회 중...
+  [미국] INTC 조회 중...
+  [국내] KODEX 인버스(114800) 조회 중...
+  [미국] NU 조회 중...
+  [국내] TIGER 200선물인버스2X(252710) 조회 중...
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-26 21:21:35.468745
+============================================================
+
+  [미국] PATH 조회 중...
+  [국내] KODEX 코스닥150레버리지(233740) 조회 중...
+  [미국] AAL 조회 중...
+  [국내] KODEX 2차전지산업레버리지(462330) 조회 중...
+  [미국] BMNR 조회 중...
+  [국내] KODEX 코스닥150선물인버스(251340) 조회 중...
+  [미국] SMR 조회 중...
+  [국내] TIGER 미국S&P500(360750) 조회 중...
+  [미국] SPCX 조회 중...
+  [국내] 삼성 인버스 2X 코스닥150 선물 ETN(Q530107) 조회 중...
+
+======================================================================
+ 미국만 스크리닝 결과 (점수 높은 순)
+======================================================================
+
+[100.0점] (US) PATH UiPath, Inc.
+  현재가: $16.66 | 변동폭: 6.1% | 패닉비율: 0.0% | 거래대금: $854,340,802
+  코멘트: 변동폭 적정(6.1%); 유동성 충분; 추세지속성 양호(0.07); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 95.3점] (US) NU Nu Holdings Ltd.
+  현재가: $15.14 | 변동폭: 4.09% | 패닉비율: 0.0% | 거래대금: $1,066,699,554
+  코멘트: 변동폭 적정(4.1%); 유동성 충분; 추세지속성 양호(0.16)
+
+[ 91.0점] (US) AAL American Airlines Group, Inc.
+  현재가: $13.95 | 변동폭: 4.27% | 패닉비율: 0.0% | 거래대금: $1,694,006,660
+  코멘트: 변동폭 적정(4.3%); 유동성 충분
+
+[ 89.1점] (US) INTC Intel Corporation
+  현재가: $87.48 | 변동폭: 7.57% | 패닉비율: 0.0% | 거래대금: $12,801,556,179
+  코멘트: 변동폭 적정(7.6%); 유동성 충분
+
+[ 86.2점] (US) SPCX Space Exploration Technologies 
+  현재가: $137.95 | 변동폭: 8.15% | 패닉비율: 11.8% | 거래대금: $17,270,504,876
+  코멘트: 변동폭 다소 높음(8.2%); 유동성 충분; 추세지속성 양호(0.07); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 85.1점] (US) BMNR BitMine Immersion Technologies,
+  현재가: $24.82 | 변동폭: 7.22% | 패닉비율: 1.7% | 거래대금: $664,717,660
+  코멘트: 변동폭 적정(7.2%); 유동성 충분; 평균회귀 성향(-0.08)
+
+[ 84.5점] (US) NVDA NVIDIA Corporation
+  현재가: $213.05 | 변동폭: 3.46% | 패닉비율: 0.0% | 거래대금: $28,273,423,877
+  코멘트: 변동폭 적정(3.5%); 유동성 충분; 평균회귀 성향(-0.16)
+
+[ 80.1점] (US) SMR NuScale Power Corporation
+  현재가: $9.81 | 변동폭: 8.35% | 패닉비율: 1.7% | 거래대금: $325,005,492
+  코멘트: 변동폭 다소 높음(8.3%); 유동성 충분; 평균회귀 성향(-0.20)
+결과 저장: C:\TradingBot\combined_screening_result.csv
+주간 이력 로그: C:\TradingBot\ScreeningLog\screening_2026_08_26.csv
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+C:\TradingBot\auto_trading_bot.py:1148: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+[알림] 가격 상한(국내 300,000원 / 미국 $200) 초과로 1개 종목을 후보에서 제외합니다:
+  (US) NVDA: $213.05
+
+[연동용 파일 저장] C:\TradingBot\watchlist.json
+  국내 5종목(기존 유지): 005930, 114800, 229200, 251340, 379800
+  미국 5종목(신규 갱신): PATH, NU, AAL, INTC, SPCX
+ 실행 종료: 2026-08-26 21:21:47.348774
+============================================================
+
+  [국내] KODEX 미국나스닥100(379810) 조회 중...
+  [국내] KODEX SK하이닉스단일종목레버리지(0193T0) 조회 중...
+  [국내] 신라젠(215600) 조회 중...
+  [국내] KODEX 코스닥150(229200) 조회 중...
+  [국내] KODEX 미국S&P500(379800) 조회 중...
+  [국내] KODEX 200(069500) 조회 중...
+  [국내] 대우건설(047040) 조회 중...
+
+======================================================================
+ 국내만 스크리닝 결과 (점수 높은 순)
+======================================================================
+
+[100.0점] (KR) 215600 신라젠
+  현재가: 2,860원 | 변동폭: 7.69% | 패닉비율: 7.2% | 거래대금: 3,579,217,934원
+  코멘트: 변동폭 적정(7.7%); 유동성 충분; 추세지속성 양호(0.31); RVOL 높음(평소 대비 7.1배 거래량)
+
+[ 98.0점] (KR) 229200 KODEX 코스닥150
+  현재가: 14,200원 | 변동폭: 6.53% | 패닉비율: 1.4% | 거래대금: 551,442,901,868원
+  코멘트: 변동폭 적정(6.5%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 97.5점] (KR) 114800 KODEX 인버스
+  현재가: 1,024원 | 변동폭: 6.89% | 패닉비율: 2.9% | 거래대금: 1,075,665,200,642원
+  코멘트: 변동폭 적정(6.9%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 96.3점] (KR) 069500 KODEX 200
+  현재가: 107,710원 | 변동폭: 6.77% | 패닉비율: 2.9% | 거래대금: 2,649,405,410,766원
+  코멘트: 변동폭 적정(6.8%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 96.0점] (KR) 251340 KODEX 코스닥150선물인버스
+  현재가: 2,400원 | 변동폭: 6.69% | 패닉비율: 2.9% | 거래대금: 128,838,191,187원
+  코멘트: 변동폭 적정(6.7%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 91.3점] (KR) 379810 KODEX 미국나스닥100
+  현재가: 26,705원 | 변동폭: 1.67% | 패닉비율: 0.0% | 거래대금: 321,597,818,291원
+  코멘트: 변동폭 다소 낮음(1.7%); 유동성 충분; 추세지속성 양호(0.22)
+
+[ 89.0점] (KR) 379800 KODEX 미국S&P500
+  현재가: 23,920원 | 변동폭: 1.13% | 패닉비율: 0.0% | 거래대금: 677,498,922,943원
+  코멘트: 변동폭 다소 낮음(1.1%); 유동성 충분; 추세지속성 양호(0.13); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 87.1점] (KR) 360750 TIGER 미국S&P500
+  현재가: 26,335원 | 변동폭: 1.13% | 패닉비율: 0.0% | 거래대금: 915,398,968,514원
+  코멘트: 변동폭 다소 낮음(1.1%); 유동성 충분; 추세지속성 양호(0.07); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 83.7점] (KR) 047040 대우건설
+  현재가: 19,100원 | 변동폭: 10.09% | 패닉비율: 10.1% | 거래대금: 172,531,629,779원
+  코멘트: 변동폭 다소 높음(10.1%); 유동성 충분; 추세지속성 양호(0.11); RVOL 높음(평소 대비 4.7배 거래량)
+
+[ 72.2점] (KR) 462330 KODEX 2차전지산업레버리지
+  현재가: 993원 | 변동폭: 11.83% | 패닉비율: 14.5% | 거래대금: 81,938,628,672원
+  코멘트: 변동폭 다소 높음(11.8%); 유동성 충분; 추세지속성 양호(0.09); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 66.8점] (KR) 233740 KODEX 코스닥150레버리지
+  현재가: 7,105원 | 변동폭: 12.78% | 패닉비율: 24.6% | 거래대금: 750,790,143,772원
+  코멘트: 변동폭 다소 높음(12.8%); 패닉성 급변동 비율 높음(25%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 64.2점] (KR) Q530107 삼성 인버스 2X 코스닥150 선물 ETN
+  현재가: 1,752원 | 변동폭: 13.13% | 패닉비율: 24.6% | 거래대금: 44,118,022,753원
+  코멘트: 변동폭 다소 높음(13.1%); 패닉성 급변동 비율 높음(25%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 63.7점] (KR) 252710 TIGER 200선물인버스2X
+  현재가: 84원 | 변동폭: 13.96% | 패닉비율: 34.8% | 거래대금: 13,095,862,813원
+  코멘트: 변동폭 다소 높음(14.0%); 패닉성 급변동 비율 높음(35%); 유동성 충분; 추세지속성 양호(0.05); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 61.6점] (KR) 252670 KODEX 200선물인버스2X
+  현재가: 77원 | 변동폭: 14.53% | 패닉비율: 37.7% | 거래대금: 900,632,480,662원
+  코멘트: 변동폭 다소 높음(14.5%); 패닉성 급변동 비율 높음(38%); 유동성 충분; NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+
+[ 47.7점] (KR) 0193T0 KODEX SK하이닉스단일종목레버리지
+  현재가: 10,090원 | 변동폭: 19.81% | 패닉비율: 68.3% | 거래대금: 3,060,934,130,871원
+  코멘트: 변동폭 다소 높음(19.8%); 패닉성 급변동 비율 높음(68%); 유동성 충분; 추세지속성 양호(0.09); NR7(최근7일중 최저변동성, 돌파 임박 가능성)
+결과 저장: C:\TradingBot\combined_screening_result.csv
+주간 이력 로그: C:\TradingBot\ScreeningLog\screening_2026_08_26.csv
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+C:\TradingBot\auto_trading_bot.py:1148: FutureWarning: Calling float on a single element Series is deprecated and will raise a TypeError in the future. Use float(ser.iloc[0]) instead
+  rate = float(df["Close"].iloc[-1])
+
+[연동용 파일 저장] C:\TradingBot\watchlist.json
+  국내 5종목(신규 갱신): 215600, 229200, 114800, 069500, 251340
+  미국 5종목(기존 유지): PATH, NU, AAL, INTC, SPCX
+ 실행 종료: 2026-08-26 21:22:04.311204
+============================================================
+
