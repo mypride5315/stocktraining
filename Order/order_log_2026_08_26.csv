@@ -1,0 +1,4 @@
+﻿timestamp,action,ticker,price,shares,reason,reason_kr,extra,mode
+2026-08-26T23:08:56.245076,SELL_US,PATH,16.295000076293945,21,emergency_carryover_close,이월 포지션 비상매도,pnl_krw=-9454,MOCK
+2026-08-26T23:08:56.962604,BUY_US,PATH,16.854999542236328,21,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
+2026-08-26T23:08:59.833836,SELL_US,NU,15.220000267028809,12,emergency_carryover_close,이월 포지션 비상매도,pnl_krw=9641,MOCK
