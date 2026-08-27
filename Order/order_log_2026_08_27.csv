@@ -4,3 +4,4 @@
 2026-08-27T23:00:34.600545,SELL_US,NU,15.140000343322754,23,emergency_carryover_close,이월 포지션 비상매도,pnl_krw=-4136,MOCK
 2026-08-27T23:12:27.278410,BUY_US,INTC,90.38999938964844,4,orb_vwap_breakout,박스+VWAP 동시 돌파 매수,,MOCK
 2026-08-27T23:15:08.223788,SELL_US,INTC,90.59500122070312,2,take_profit_partial,"1차 분할 익절 (절반 매도, 잔여는 본전손절로 보유)",pnl_krw=567,MOCK
+2026-08-27T23:15:40.147053,SELL_US,INTC,90.59500122070312,2,stop_loss,손절 (손실 제한),pnl_krw=567,MOCK
