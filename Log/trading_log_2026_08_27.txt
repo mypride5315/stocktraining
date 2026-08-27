@@ -5389,3 +5389,32 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
   SNAP: 대기 중 (현재가 $5.41, 박스상단 $6.00, VWAP $5.43, RSI 73.1) - 박스상단 미돌파, VWAP 아래
 
 [INTC]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [INTC] 데이터 16행 수신 (세션: 2026-08-27)
+  INTC: 이번 세션 매매 이미 완료됨 (현재가 $91.51, 박스상단 $87.42, VWAP $90.57)
+
+[PATH]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [PATH] 데이터 16행 수신 (세션: 2026-08-27)
+  PATH: 보유 중 (진입가 $18.34, 현재 $18.18, 박스상단 $16.92, VWAP $18.12, 손절가 $17.98)
+
+[AAL]
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:484: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  return _pd.Timedelta(interval)
+C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\utils.py:667: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  last_rows_same_interval = (dt2 - dt1) < _pd.Timedelta(interval)
+  [AAL] 데이터 17행 수신 (세션: 2026-08-27)
+  AAL: 대기 중 (현재가 $13.87, 박스상단 $14.15, VWAP $13.83, RSI 28.9) - 박스상단 미돌파
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +1,210원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-27 23:50:50.625034
+============================================================
+
