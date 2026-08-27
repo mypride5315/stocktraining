@@ -807,9 +807,10 @@ def process_ticker_nh_us(ticker: str, act_no: str, state: dict, capital_usd: flo
         if not price_data:
             return {"ticker": ticker, "status": "no_data"}
         # Output_0 필드명은 공식 chk_current_price.py 샘플에서 구체적으로 확정되지 않아
-        # 흔한 후보들을 순서대로 시도함 (해외주식 현재가 응답의 일반적인 필드명 패턴)
+        # 흔한 후보들을 순서대로 시도함 (해외주식 현재가 응답의 일반적인 필드명 패턴).
+        # trdprc(체결가)가 실제 응답에서 확인된 필드라 최우선으로 찾음.
         o0 = price_data.get("Output_0", {}) if isinstance(price_data, dict) else {}
-        price_raw = o0.get("prpr") or o0.get("last") or o0.get("iem_prpr")
+        price_raw = o0.get("trdprc") or o0.get("prpr") or o0.get("last") or o0.get("iem_prpr")
         if price_raw is None:
             print(f"  {ticker}: 현재가 응답에서 가격 필드를 못 찾음 (응답 키: {list(o0.keys())})")
             return {"ticker": ticker, "status": "no_data"}
