@@ -235,6 +235,25 @@ NH_REASON_LABELS_KR = {
 }
 
 
+def get_nh_ticker_name(ticker: str, market: str = "domestic") -> str:
+    """카톡 메시지에 표시할 종목명을 watchlist.json에서 조회. 없으면 티커코드를 그대로 반환.
+    -- ict_strategy_bot.py의 ict_get_ticker_name()과 동일한 방식(watchlist.json 재사용) --
+    해외 종목은 영문 티커만 보여서 뭔지 바로 안 와닿는 문제가 있었음(2026-08-28 요청)."""
+    if not os.path.exists(WATCHLIST_PATH):
+        return ticker
+    try:
+        with open(WATCHLIST_PATH, "r", encoding="utf-8") as f:
+            wl = json.load(f)
+        key = "kr_tickers" if market == "domestic" else "us_tickers"
+        entry = wl.get(key, {}).get(ticker, {})
+        if isinstance(entry, dict):
+            name = entry.get("name", "")
+            return f"{ticker}({name})" if name and name != ticker else ticker
+        return ticker
+    except Exception:
+        return ticker
+
+
 def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extra: str = "",
                   market: str = "domestic"):
     """실제 체결된 주문을 Order/order_log_NH_YYYY_MM_DD.csv에 기록 + 카카오톡 알림.
@@ -272,12 +291,13 @@ def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extr
     mode_label = "모의" if is_mock else "실전"
     action_label = {"BUY": "매수", "SELL": "매도"}.get(action, action)
     reason_kr = NH_REASON_LABELS_KR.get(reason, reason)
+    ticker_display = get_nh_ticker_name(ticker, market)
     if market == "overseas":
         price_display = f"${price:,.2f}"
     else:
         price_display = f"{price:,.0f}원"
     msg = (f"[NH-{mode_label}] {action_label} 체결\n"
-           f"종목: {ticker}\n"
+           f"종목: {ticker_display}\n"
            f"가격: {price_display} x {shares}주\n"
            f"사유: {reason_kr}")
     if extra:
