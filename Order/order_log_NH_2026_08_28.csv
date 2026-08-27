@@ -1,2 +1,3 @@
-﻿timestamp,action,ticker,price,shares,reason,extra,mode
-2026-08-28T00:00:06.227747,BUY,PATH,18.27,21,orb_vwap_breakout,market=overseas,MOCK
+﻿timestamp,action,ticker,price,shares,reason,extra,mode,market
+2026-08-28T00:00:06.227747,BUY,PATH,18.27,21,orb_vwap_breakout,market=overseas,MOCK,
+2026-08-28T00:20:03.053641,BUY,SNAP,5.49,72,orb_vwap_breakout,,MOCK,overseas
