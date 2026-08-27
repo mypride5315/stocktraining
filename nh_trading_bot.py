@@ -387,11 +387,14 @@ def get_us_sellable_quantity(act_no: str, ticker: str) -> dict:
 
 
 def order_us_buy(act_no: str, iem_cd: str, orr_qty: int, price: float = None, dry_run: bool = True) -> dict:
-    """해외주식 매수 주문 (POST /gbstock/order/v1/buy, 공식 샘플로 확인된 필드)"""
+    """해외주식 매수 주문 (POST /gbstock/order/v1/buy, 공식 샘플로 확인된 필드)
+    ⚠️ wtm_cur_knd_cd(증거금통화종류코드)를 "2"(원화)로 뒀더니 모의투자에서
+    "14300 모의투자에서는 거래국가통화만 가능합니다"로 거부됨(2026-08-27 실제 주문
+    시도로 확인). "1"(해당통화=거래국가 통화, 미국주식이면 USD)로 변경."""
     input_0 = {
         "act_no": act_no, "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": iem_cd,
         "orr_qty": orr_qty, "ahi_nmn_pr_tp_cd": "00" if price is not None else "03",
-        "wtm_cur_knd_cd": "2",
+        "wtm_cur_knd_cd": "1",
     }
     if price is not None:
         input_0["fc_orr_uit_pr"] = price
@@ -414,7 +417,8 @@ def order_us_sell(act_no: str, iem_cd: str, orr_qty: int, price: float = None, d
     input_0 = {
         "act_no": act_no, "fc_sec_trd_nat_cd": US_NAT_CD, "iem_cd": iem_cd,
         "orr_qty": orr_qty, "ahi_nmn_pr_tp_cd": "00" if price is not None else "03",
-        "wtm_cur_knd_cd": "2",
+        # wtm_cur_knd_cd(증거금통화종류코드)는 매도 요청 공식 명세엔 없는 필드라 제외함
+        # (order_overseas_sell의 기존 주석과 동일한 확인 사항).
     }
     if price is not None:
         input_0["fc_orr_uit_pr"] = price
@@ -1049,11 +1053,14 @@ def main():
                     print(f"  주문결과: {r['order_result']}")
 
                 status = str(r.get("status", ""))
-                if not dry_run and status == "entry_signal":
-                    pos = state["positions"][ticker]
+                pos = state["positions"][ticker]
+                # 주문이 거부되면 process_ticker_nh가 pos를 갱신하지 않으므로(in_position이
+                # 그대로), entry_signal/exit_signal이어도 실제로 체결됐을 때만 기록해야 함
+                # - 그냥 진행하면 pos["shares"]가 없어서 KeyError가 났었음(2026-08-27 확인,
+                # 해외(order_us_buy) 쪽에서 먼저 재현됨).
+                if not dry_run and status == "entry_signal" and pos.get("in_position"):
                     log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout")
-                elif not dry_run and status.startswith("exit_signal"):
-                    pos = state["positions"][ticker]
+                elif not dry_run and status.startswith("exit_signal") and not pos.get("in_position"):
                     pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
                     state["daily_pnl"] += pnl
                     reason = status.split(":", 1)[1] if ":" in status else status
@@ -1087,12 +1094,14 @@ def main():
                         print(f"  주문결과: {r['order_result']}")
 
                     status = str(r.get("status", ""))
-                    if not dry_run and status == "entry_signal":
-                        pos = us_state["positions"][ticker]
+                    pos = us_state["positions"][ticker]
+                    # 주문이 거부되면(예: 2026-08-27 "14300 모의투자에서는 거래국가통화만
+                    # 가능합니다") process_ticker_nh_us가 pos를 갱신하지 않으므로, 실제로
+                    # 체결됐을 때만(in_position 변화로 판단) 기록해야 KeyError('shares')를 피함.
+                    if not dry_run and status == "entry_signal" and pos.get("in_position"):
                         log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout",
                                      extra="market=overseas")
-                    elif not dry_run and status.startswith("exit_signal"):
-                        pos = us_state["positions"][ticker]
+                    elif not dry_run and status.startswith("exit_signal") and not pos.get("in_position"):
                         pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
                         us_state["daily_pnl"] += pnl
                         reason = status.split(":", 1)[1] if ":" in status else status
