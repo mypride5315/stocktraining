@@ -667,3 +667,32 @@
   상태: holding | 박스상단 13.88 VWAP 13.86 현재가 13.85
 
 오늘 NH 해외 누적손익: $+0.00
+============================================================
+ NH투자증권(나무Plug) ORB+VWAP 자동매매 - 2026-08-28 01:55:01.120373
+============================================================
+[모드] 모의투자(moapi)로 접속합니다.
+[안전장치 해제됨] enable_auto_orders=true - 신호 발생 시 실제로 주문이 나갑니다.
+
+[해외(미국) 5종목 처리 - 뉴욕시각 12:55]
+
+[NU]
+  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker='NU', payload={'iem_cd': 'NU'}, APP_KEY 앞8자리=CAU1H7RK
+  상태: waiting | 박스상단 15.21 VWAP 14.84 현재가 14.78
+
+[SNAP]
+  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker='SNAP', payload={'iem_cd': 'SNAP'}, APP_KEY 앞8자리=CAU1H7RK
+  상태: holding | 박스상단 5.44 VWAP 5.50 현재가 5.50
+
+[INTC]
+  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker='INTC', payload={'iem_cd': 'INTC'}, APP_KEY 앞8자리=CAU1H7RK
+  상태: holding | 박스상단 90.98 VWAP 91.13 현재가 90.86
+
+[PATH]
+  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker='PATH', payload={'iem_cd': 'PATH'}, APP_KEY 앞8자리=CAU1H7RK
+  상태: holding | 박스상단 18.26 VWAP 18.24 현재가 18.32
+
+[AAL]
+  [진단] get_us_current_price 요청값(운영 서버로 조회): ticker='AAL', payload={'iem_cd': 'AAL'}, APP_KEY 앞8자리=CAU1H7RK
+  상태: holding | 박스상단 13.88 VWAP 13.86 현재가 13.89
+
+오늘 NH 해외 누적손익: $+0.00
