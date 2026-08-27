@@ -707,10 +707,13 @@ def check_orb_vwap_signal(df: pd.DataFrame, orb_minutes: int = 30) -> dict:
     df = df.copy()
     df["vwap"] = calc_vwap(df)
 
-    # ⚠️ 예전엔 .normalize() + Timedelta 조합에서 NumPy DeprecationWarning이 발생했음.
-    # 날짜만 뽑아서 Timestamp를 새로 만드는 방식으로 교체해 경고 없이 동일한 결과를 얻음.
-    first_date = df["datetime"].iloc[0].date()
-    open_dt = pd.Timestamp(first_date) + pd.Timedelta(hours=9)
+    # ⚠️ 예전엔 "그날 09:00(KST)"를 박스 시작 기준으로 하드코딩했었는데, 국내는 실제로
+    # 09:00에 장이 열려서 우연히 맞았지만 해외(미국) 스냅샷은 한국시각 22:30~23:30경에
+    # 찍혀서 09:00 기준이 첫 데이터보다 훨씬 앞서버려 opening 구간이 항상 텅 비고
+    # box_forming에서 영영 못 벗어나는 버그가 있었음. df의 "첫 번째 바 시각"을 그대로
+    # 박스 시작 기준으로 쓰면 국내(첫 바=09:00 근방)/해외(첫 바=실제 장시작 스냅샷) 모두
+    # 정확히 동작함.
+    open_dt = df["datetime"].iloc[0]
     range_end = open_dt + pd.Timedelta(minutes=orb_minutes)
     opening = df[df["datetime"] < range_end]
 
