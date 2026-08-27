@@ -198,7 +198,12 @@ def _kakao_refresh_access_token(token_data):
 def send_kakao_message(text: str):
     """체결 알림을 카카오톡(나에게 보내기)으로 전송. 실패해도 절대 예외를 던지지 않음.
     -- auto_trading_bot.py의 send_kakao_message()와 동일(공유 개인 토큰, 순수 인프라 코드) --
-    kakao_token.json이 없으면(카카오 연동 안 한 경우) 조용히 건너뜀(에러 아님)."""
+    kakao_token.json이 없으면(카카오 연동 안 한 경우) 조용히 건너뜀(에러 아님).
+
+    ⚠️ 2026-08-28 확인(ict_strategy_bot.py에서 먼저 발견): 카카오 "나에게 보내기" API는
+    실패해도 HTTP 200을 그대로 반환하고, 실제 성공 여부는 응답 본문의
+    result_code(0=성공, 그 외=실패)로만 알 수 있음. status_code만 보면 실제로는
+    발송 안 됐는데도 에러 로그가 하나도 안 남을 수 있어서 result_code까지 확인함."""
     if not os.path.exists(KAKAO_TOKEN_PATH):
         return
     try:
@@ -223,6 +228,16 @@ def send_kakao_message(text: str):
         res = requests.post(url, headers=headers, data={"template_object": json.dumps(template)}, timeout=10)
         if res.status_code != 200:
             print(f"  [알림] 카카오톡 전송 실패: {res.status_code} {res.text}")
+            return
+        try:
+            body = res.json()
+        except ValueError:
+            body = {}
+        result_code = body.get("result_code")
+        if result_code not in (0, None):
+            print(f"  [알림] 카카오톡 전송 거부됨(HTTP 200이지만 result_code={result_code}): {body}")
+        else:
+            print("  [알림] 카카오톡 전송 완료")
     except Exception as e:
         print(f"  [알림] 카카오톡 전송 중 오류(무시하고 계속 진행): {e}")
 

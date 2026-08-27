@@ -622,9 +622,17 @@ def _ict_kakao_refresh_access_token(token_data):
 
 def ict_send_kakao_message(text):
     """ICT 봇 체결 알림을 카카오톡(나에게 보내기)으로 전송. 실패해도 예외를 던지지 않음
-    (알림 실패가 실제 매매 로직을 막으면 안 되므로)."""
+    (알림 실패가 실제 매매 로직을 막으면 안 되므로).
+
+    ⚠️ 2026-08-28 확인: 카카오 "나에게 보내기" API는 실패해도 HTTP 200을 그대로
+    반환하고, 실제 성공 여부는 응답 본문의 result_code(0=성공, 그 외=실패)로만
+    알 수 있음. status_code만 확인하면 사실상 항상 "성공"으로 보여서 실제로는
+    발송이 안 됐는데도 로그에 에러가 전혀 안 남는 문제가 있었음(SNAP/INTC 매수
+    체결 알림이 카톡으로 안 온 원인으로 의심됨). result_code까지 확인하도록
+    수정하고, 성공 시에도 확인용으로 짧게 로그를 남김."""
     if not os.path.exists(ICT_KAKAO_TOKEN_PATH):
-        return  # 카카오 연동을 안 하신 경우, 조용히 건너뜀 (에러 아님)
+        print("  [알림] kakao_token.json이 없어 카카오톡 전송을 건너뜁니다.")
+        return
     try:
         with open(ICT_KAKAO_TOKEN_PATH, "r", encoding="utf-8") as f:
             token_data = json.load(f)
@@ -647,6 +655,16 @@ def ict_send_kakao_message(text):
         res = requests.post(url, headers=headers, data={"template_object": json.dumps(template)}, timeout=10)
         if res.status_code != 200:
             print(f"  [알림] 카카오톡 전송 실패: {res.status_code} {res.text}")
+            return
+        try:
+            body = res.json()
+        except ValueError:
+            body = {}
+        result_code = body.get("result_code")
+        if result_code not in (0, None):
+            print(f"  [알림] 카카오톡 전송 거부됨(HTTP 200이지만 result_code={result_code}): {body}")
+        else:
+            print("  [알림] 카카오톡 전송 완료")
     except Exception as e:
         print(f"  [알림] 카카오톡 전송 중 오류(무시하고 계속 진행): {e}")
 
