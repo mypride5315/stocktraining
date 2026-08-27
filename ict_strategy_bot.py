@@ -794,14 +794,19 @@ def ict_process_ticker(ticker, cfg, token, is_mock, state, market="domestic", ex
                 "shares": shares, "stop_price": stop_price, "tp_price": tp_price,
                 "entry_time": now.isoformat()})
     ict_log_order("BUY", ticker, buy_price, shares, "orderblock_msb_breakout", extra=f"market={market}")
-    print(f"  {ticker}: 매수 체결 (손절가 {stop_price:,.2f}, 익절가 {tp_price:,.2f}, 손익비 1:{ICT_RISK_REWARD_RATIO})")
+    # 손익비(1:N)만으로는 실제로 얼마를 벌고 잃는지 감이 안 와서, 예상 손실/수익 금액도 같이 계산함.
+    max_loss_amount = (stop_price - buy_price) * shares
+    max_gain_amount = (tp_price - buy_price) * shares
+    unit = "원" if market == "domestic" else "달러"
+    print(f"  {ticker}: 매수 체결 (손절가 {stop_price:,.2f}, 익절가 {tp_price:,.2f}, 손익비 1:{ICT_RISK_REWARD_RATIO}, "
+          f"예상손익 {max_loss_amount:+,.0f}~{max_gain_amount:+,.0f}{unit})")
     market_label = "국내" if market == "domestic" else "해외"
     ticker_display = ict_get_ticker_name(ticker, market)
     ict_send_kakao_message(
         f"[ICT봇 매수] {market_label} {ticker_display}\n"
         f"체결가: {buy_price:,.2f} x {shares}주\n"
-        f"손절가: {stop_price:,.2f} / 익절가: {tp_price:,.2f}\n"
-        f"손익비 1:{ICT_RISK_REWARD_RATIO}"
+        f"손절가: {stop_price:,.2f} / 익절가: {tp_price:,.2f} (손익비 1:{ICT_RISK_REWARD_RATIO})\n"
+        f"예상 손익: {max_loss_amount:+,.0f}{unit} ~ {max_gain_amount:+,.0f}{unit}"
     )
 
 
