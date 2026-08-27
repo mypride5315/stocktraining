@@ -35,12 +35,20 @@ Order/order_log_NH_YYYY_MM_DD.csv(실제 체결된 주문만)에 KIS 봇과 같�
 import os
 import json
 import time
+import warnings
 import requests
 from contextlib import contextmanager
 from datetime import datetime, timedelta, time as dtime
 from zoneinfo import ZoneInfo
 import pandas as pd
 import numpy as np
+
+# 이 환경의 pandas 2.3.3/numpy 2.5.1 조합에서, 가장 기본적인 Timestamp+Timedelta
+# 연산(예: pd.Timestamp(...) + pd.Timedelta(minutes=30))만 해도 발생하는 라이브러리 내부
+# 경고임(2026-08-27 최소 재현으로 확인 - 우리 코드 로직과 무관). 동작에는 전혀 영향 없고
+# 로그만 지저분하게 만들어서 이 메시지만 조용히 걸러냄(다른 DeprecationWarning은 그대로 노출).
+warnings.filterwarnings("ignore", category=DeprecationWarning,
+                         message=".*generic.*unit for NumPy timedelta.*")
 
 BASE_DIR = r"C:\TradingBot"
 NH_CONFIG_PATH = os.path.join(BASE_DIR, "nh_config.json")
@@ -455,7 +463,13 @@ def append_us_price_snapshot(ticker: str, price: float, volume: float = None):
 
 def build_us_bars_from_history(ticker: str, bucket_minutes: int = 5) -> pd.DataFrame:
     """쌓인 현재가 스냅샷을 bucket_minutes 단위로 묶어 OHLCV 분봉으로 변환.
-    스냅샷 개수가 적은 하루 초반에는 봉 개수가 적을 수밖에 없음(자연스러운 현상)."""
+    스냅샷 개수가 적은 하루 초반에는 봉 개수가 적을 수밖에 없음(자연스러운 현상).
+
+    ⚠️ append_us_price_snapshot이 저장하는 volume은 acvol(누적거래량) 원본값이라,
+    국내(acml_vol)와 동일하게 스냅샷 간 차분을 먼저 구해서 "그 구간 동안의 거래량"으로
+    변환한 뒤 버킷별로 합산함. 차분 없이 누적치를 그대로 합산하면 VWAP이 뒤로 갈수록
+    누적치가 계속 더해져 터무니없이 커지거나(중복 카운트), 거래량이 None이면 0으로
+    깔려서 VWAP이 0/0=nan이 되는 문제가 있었음(2026-08-27 확인)."""
     today_et = datetime.now(ZoneInfo("America/New_York")).date().isoformat()
     history = load_us_price_history()
     snapshots = history.get(f"{ticker}:{today_et}", [])
@@ -463,12 +477,21 @@ def build_us_bars_from_history(ticker: str, bucket_minutes: int = 5) -> pd.DataF
         return pd.DataFrame()
     df = pd.DataFrame(snapshots)
     df["datetime"] = pd.to_datetime(df["ts"])
-    df = df.set_index("datetime").sort_index()
+    df = df.sort_values("datetime")
+
+    if df["volume"].notna().any():
+        cum_vol = df["volume"].astype(float)
+        df["bar_volume"] = cum_vol.diff().fillna(cum_vol)
+        df.loc[df["bar_volume"] < 0, "bar_volume"] = 0  # 누적치 리셋 등 이상치 방어
+    else:
+        df["bar_volume"] = 0.0
+
+    df = df.set_index("datetime")
     ohlc = df["price"].resample(f"{bucket_minutes}min").ohlc()
-    vol = df["volume"].resample(f"{bucket_minutes}min").sum() if df["volume"].notna().any() else None
+    vol = df["bar_volume"].resample(f"{bucket_minutes}min").sum()
     ohlc = ohlc.dropna(subset=["open"]).reset_index()
     ohlc.columns = ["datetime", "open", "high", "low", "close"]
-    ohlc["volume"] = vol.reindex(ohlc["datetime"]).values if vol is not None else 0.0
+    ohlc["volume"] = vol.reindex(ohlc["datetime"]).values
     return ohlc
 
 
@@ -818,7 +841,13 @@ def process_ticker_nh_us(ticker: str, act_no: str, state: dict, capital_usd: flo
             print(f"  {ticker}: 현재가 응답에서 가격 필드를 못 찾음 (응답 키: {list(o0.keys())})")
             return {"ticker": ticker, "status": "no_data"}
         price = float(price_raw)
-        append_us_price_snapshot(ticker, price)
+        # acvol(누적거래량)이 실제 응답 필드로 확인됨. 이게 없으면 volume이 항상 None으로
+        # 남아 VWAP 계산이 0/0=nan이 되어 "close>vwap" 진입조건을 영원히 못 만족하는
+        # 버그가 있었음(2026-08-27 확인). 국내(acml_vol)와 동일하게 누적치를 저장하고,
+        # build_us_bars_from_history에서 스냅샷 간 차분으로 봉별 거래량을 구함.
+        acvol_raw = o0.get("acvol")
+        volume = float(acvol_raw) if acvol_raw is not None else None
+        append_us_price_snapshot(ticker, price, volume=volume)
 
         df = build_us_bars_from_history(ticker)
         if len(df) < orb_bars:
