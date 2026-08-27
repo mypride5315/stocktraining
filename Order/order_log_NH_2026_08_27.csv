@@ -1,0 +1,2 @@
+﻿timestamp,action,ticker,price,shares,reason,extra,mode
+2026-08-27T23:45:07.637515,BUY,AAL,13.8915,28,orb_vwap_breakout,market=overseas,MOCK
