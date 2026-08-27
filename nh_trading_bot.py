@@ -868,7 +868,11 @@ def process_ticker_nh_us(ticker: str, act_no: str, state: dict, capital_usd: flo
             shares = int(capital_usd // sig["close"])
             if shares <= 0:
                 return {"ticker": ticker, "status": "insufficient_capital", **sig}
-            order_result = order_us_buy(act_no, ticker, shares, dry_run=dry_run)
+            # price를 안 넘기면 order_us_buy가 시장가(03)로 보내는데, 모의투자 해외주문은
+            # "14650 모의투자 지정가만 가능한 상품입니다"로 시장가를 전부 거부함(2026-08-27
+            # INTC 실제 시도로 확인). 현재가를 지정가로 넘겨서 사실상 시장가처럼 즉시
+            # 체결되게 함(지정가 00으로 전환됨).
+            order_result = order_us_buy(act_no, ticker, shares, price=sig["close"], dry_run=dry_run)
             if not dry_run and order_result.get("success"):
                 pos.update({"in_position": True, "day_traded": True,
                             "entry_price": sig["close"], "shares": shares})
@@ -879,7 +883,7 @@ def process_ticker_nh_us(ticker: str, act_no: str, state: dict, capital_usd: flo
                                              stop_pct, tp_trigger_pct)
             if not exit_reason:
                 return {"ticker": ticker, "status": "holding", **sig}
-            order_result = order_us_sell(act_no, ticker, pos["shares"], dry_run=dry_run)
+            order_result = order_us_sell(act_no, ticker, pos["shares"], price=sig["close"], dry_run=dry_run)
             if not dry_run and order_result.get("success"):
                 pos.update({"in_position": False})
             return {"ticker": ticker, "status": f"exit_signal:{exit_reason}",
