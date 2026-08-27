@@ -235,9 +235,13 @@ NH_REASON_LABELS_KR = {
 }
 
 
-def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extra: str = ""):
+def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extra: str = "",
+                  market: str = "domestic"):
     """실제 체결된 주문을 Order/order_log_NH_YYYY_MM_DD.csv에 기록 + 카카오톡 알림.
     -- auto_trading_bot.py의 log_order() 구조를 참고함(그대로 복사 아님) --
+    market: "domestic"(원화) 또는 "overseas"(달러) - 가격/손익 표시 단위를 결정함.
+    ⚠️ 예전엔 market 구분 없이 항상 "원"으로 표시해서, 해외(달러) 체결도 "원"으로
+    잘못 표기되고 있었음(2026-08-27 확인). 이제 통화 단위를 정확히 구분해서 표시함.
     기록/알림 실패가 매매 상태 처리를 막으면 안 되므로 절대 예외를 위로 던지지 않음"""
     is_mock = True
     try:
@@ -252,7 +256,7 @@ def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extr
     row = pd.DataFrame([{
         "timestamp": datetime.now().isoformat(), "action": action, "ticker": ticker,
         "price": price, "shares": shares, "reason": reason, "extra": extra,
-        "mode": "MOCK" if is_mock else "REAL",
+        "mode": "MOCK" if is_mock else "REAL", "market": market,
     }])
     try:
         os.makedirs(ORDER_DIR, exist_ok=True)
@@ -268,16 +272,20 @@ def log_order_nh(action: str, ticker: str, price, shares: int, reason: str, extr
     mode_label = "모의" if is_mock else "실전"
     action_label = {"BUY": "매수", "SELL": "매도"}.get(action, action)
     reason_kr = NH_REASON_LABELS_KR.get(reason, reason)
+    if market == "overseas":
+        price_display = f"${price:,.2f}"
+    else:
+        price_display = f"{price:,.0f}원"
     msg = (f"[NH-{mode_label}] {action_label} 체결\n"
            f"종목: {ticker}\n"
-           f"가격: {price:,.0f}원 x {shares}주\n"
+           f"가격: {price_display} x {shares}주\n"
            f"사유: {reason_kr}")
     if extra:
         extra_display = extra
         if extra.startswith("pnl="):
             try:
                 val = float(extra.split("=", 1)[1])
-                extra_display = f"손익: {val:+,.0f}원"
+                extra_display = f"손익: ${val:+,.2f}" if market == "overseas" else f"손익: {val:+,.0f}원"
             except ValueError:
                 pass
         msg += f"\n{extra_display}"
@@ -1024,6 +1032,10 @@ def main():
     capital_per_ticker = int(cfg.get("capital_per_ticker_krw", 1_000_000))
     circuit_breaker = int(cfg.get("circuit_breaker_krw", 500_000))
     capital_per_ticker_usd = float(cfg.get("capital_per_ticker_usd", 400))
+    # ⚠️ 예전엔 해외(달러) 손익도 원화 기준 circuit_breaker(50만원)와 그대로 비교하고
+    # 있었음 - 달러 손익 몇백 단위는 50만이라는 숫자 근처에도 못 가서 해외 서킷브레이커가
+    # 사실상 절대 발동 안 하는 상태였음(2026-08-27 확인). 별도 달러 기준값을 둠.
+    circuit_breaker_usd = float(cfg.get("circuit_breaker_usd", 200))
 
     now = datetime.now()
     is_weekday = now.weekday() < 5
@@ -1082,8 +1094,8 @@ def main():
             us_state = load_nh_state(us_tickers, state_path=US_STATE_PATH)
             print(f"\n[해외(미국) {len(us_tickers)}종목 처리 - 뉴욕시각 {us_now_et.strftime('%H:%M')}]")
             for idx, ticker in enumerate(us_tickers):
-                if us_state["daily_pnl"] <= -circuit_breaker:
-                    print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 {us_state['daily_pnl']:,.0f}) - 신규 진입 중단")
+                if us_state["daily_pnl"] <= -circuit_breaker_usd:
+                    print(f"  {ticker}: 서킷브레이커 발동(오늘 손실 ${us_state['daily_pnl']:,.2f}) - 신규 진입 중단")
                     break
                 if idx > 0:
                     time.sleep(1.5)  # NH 해외 API가 KIS보다 rate_limit에 더 민감해서 딜레이를 늘림
@@ -1104,21 +1116,21 @@ def main():
                     # 체결됐을 때만(in_position 변화로 판단) 기록해야 KeyError('shares')를 피함.
                     if not dry_run and status == "entry_signal" and pos.get("in_position"):
                         log_order_nh("BUY", ticker, r["close"], pos["shares"], "orb_vwap_breakout",
-                                     extra="market=overseas")
+                                     market="overseas")
                     elif not dry_run and status.startswith("exit_signal") and not pos.get("in_position"):
                         pnl = (r["close"] - pos["entry_price"]) * pos["shares"]
                         us_state["daily_pnl"] += pnl
                         reason = status.split(":", 1)[1] if ":" in status else status
                         log_order_nh("SELL", ticker, r["close"], pos["shares"], reason,
-                                     extra=f"pnl={pnl:.2f}|market=overseas")
-                        print(f"  손익: {pnl:+,.2f}")
+                                     extra=f"pnl={pnl:.2f}", market="overseas")
+                        print(f"  손익: ${pnl:+,.2f}")
                 except Exception as e:
                     print(f"  [오류] {e}")
 
             # 해외 포지션은 국내와 다른 파일에 저장 (종목코드 체계가 겹칠 수 있어 상태 분리)
             with open(US_STATE_PATH, "w", encoding="utf-8") as f:
                 json.dump(us_state, f, ensure_ascii=False, indent=2)
-            print(f"\n오늘 NH 해외 누적손익: {us_state['daily_pnl']:+,.2f}")
+            print(f"\n오늘 NH 해외 누적손익: ${us_state['daily_pnl']:+,.2f}")
 
     _watchdog.cancel()
 
