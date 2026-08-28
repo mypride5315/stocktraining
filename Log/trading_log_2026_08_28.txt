@@ -4996,3 +4996,69 @@ C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit f
  실행 종료: 2026-08-28 15:18:03.171567
 ============================================================
 
+
+============================================================
+ 실행 시각: 2026-08-28 15:20:00.672548
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-28 15:20:01.355566
+============================================================
+적용 환율: 1381.5원/달러
+
+[국내장 시간대 - 국내 5종목 처리]
+
+[0000J0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+
+[000100]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000100: 청산 신호(time_close)! 84,700원 x 3주
+  [주문결과] 모의투자 매도주문이 완료 되었습니다.
+  000100: 매도 체결 (현재가 84,700, VWAP 83,171, 손익 +4,200원)
+
+[0000Z0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+
+[000080]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000080: 청산 신호(time_close)! 15,630원 x 16주
+  [주문결과] 모의투자 매도주문이 완료 되었습니다.
+  000080: 매도 체결 (현재가 15,630, VWAP 15,391, 손익 +4,480원)
+
+[000020]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000020: 아직 박스 형성 중 (09:30 이후 확인 필요)
+
+오늘 국내 누적손익: +15,920원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-28 15:22:11.986484
+============================================================
+
+
+============================================================
+ 실행 시각: 2026-08-28 15:25:00.661496
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-28 15:25:01.313216
+============================================================
+적용 환율: 1381.5원/달러
+
+[국내장 시간대 - 국내 5종목 처리]
+
+[0000J0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+
+[000100]
