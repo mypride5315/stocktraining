@@ -1,0 +1,2 @@
+﻿timestamp,action,ticker,price,shares,reason,extra,mode,market
+2026-08-29T01:05:06.210515,SELL,INTC,89.645,4,stop_loss,pnl=-7.50,MOCK,overseas
