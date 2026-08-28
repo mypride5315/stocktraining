@@ -2950,3 +2950,22 @@ C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit f
   0000Z0: 대기 중 (현재가 9,525, 박스상단 9,610, VWAP 9,514) - 박스상단 미돌파
 
 [000080]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000080: 진입 신호! 15,350원 x 32주
+  [주문결과] 모의투자 매수주문이 완료 되었습니다.
+  000080: 매수 체결 (현재가 15,350, 박스상단 15,250, VWAP 15,251, 손절가 15,120)
+
+[000020]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000020: 진입 신호! 5,130원 x 97주
+  [주문결과] 모의투자 매수주문이 완료 되었습니다.
+  000020: 매수 체결 (현재가 5,130, 박스상단 5,120, VWAP 5,099, 손절가 5,053)
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-28 11:31:29.932610
+============================================================
+
