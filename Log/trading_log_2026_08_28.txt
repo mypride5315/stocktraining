@@ -4921,3 +4921,68 @@ C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit f
 [국내장 시간대 - 국내 5종목 처리]
 
 [0000J0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  0000J0: 대기 중 (현재가 29,545, 박스상단 29,745, VWAP 29,509) - 박스상단 미돌파
+
+[000100]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000100: 1차 익절 완료, 잔여 보유 중 (진입가 83,300, 현재 84,700, 박스상단 82,700, VWAP 83,171, 손절가 83,300)
+
+[0000Z0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  0000Z0: 대기 중 (현재가 9,550, 박스상단 9,610, VWAP 9,516) - 박스상단 미돌파
+
+[000080]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000080: 1차 익절 완료, 잔여 보유 중 (진입가 15,350, 현재 15,630, 박스상단 15,250, VWAP 15,391, 손절가 15,350)
+
+[000020]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000020: 보유 중 (진입가 5,130, 현재 5,170, 박스상단 5,120, VWAP 5,118, 손절가 5,053)
+
+오늘 국내 누적손익: +7,240원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-28 15:12:53.230176
+============================================================
+
+
+============================================================
+ 실행 시각: 2026-08-28 15:15:00.670651
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-28 15:15:01.327210
+============================================================
+적용 환율: 1381.5원/달러
+
+[국내장 시간대 - 국내 5종목 처리]
+
+[0000J0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  0000J0: 대기 중 (현재가 29,545, 박스상단 29,745, VWAP 29,509) - 박스상단 미돌파
+
+[000100]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000100: 1차 익절 완료, 잔여 보유 중 (진입가 83,300, 현재 84,700, 박스상단 82,700, VWAP 83,171, 손절가 83,300)
+
+[0000Z0]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  0000Z0: 대기 중 (현재가 9,550, 박스상단 9,610, VWAP 9,516) - 박스상단 미돌파
+
+[000080]
+C:\TradingBot\auto_trading_bot.py:1226: DeprecationWarning: The 'generic' unit for NumPy timedelta is deprecated, and will raise an error in the future. This includes implicit conversion of bare integers (e.g. `+ 1`).Please use a specific unit instead.
+  range_end = open_dt + pd.Timedelta(minutes=orb_minutes_local)
+  000080: 1차 익절 완료, 잔여 보유 중 (진입가 15,350, 현재 15,630, 박스상단 15,250, VWAP 15,391, 손절가 15,350)
+
+[000020]
