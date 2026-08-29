@@ -724,3 +724,163 @@ C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\yfinance\
  실행 종료: 2026-08-30 05:55:22.897604
 ============================================================
 
+
+============================================================
+ 실행 시각: 2026-08-30 06:00:00.652555
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+============================================================
+ 자동매매 봇 실행 [모의투자] - 2026-08-30 06:00:01.257052
+============================================================
+적용 환율: 1375.7원/달러
+
+국내장/미국장 모두 시간이 아닙니다. 종료합니다.
+
+오늘 국내 누적손익: +0원
+오늘 미국 누적손익(원화환산): +0원
+  [Git] 로그를 원격 저장소에 push 완료
+ 실행 종료: 2026-08-30 06:00:05.173083
+============================================================
+
+
+============================================================
+ 실행 시각: 2026-08-30 06:01:02.824453
+ 파이썬 실행 경로: C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\python.exe
+ 파이썬 버전: 3.14.6 (tags/v3.14.6:c63aec6, Jun 10 2026, 10:26:10) [MSC v.1944 64 bit (AMD64)]
+ 스크립트 버전: 2026-07-30-v1 (Git인코딩수정+국내계좌차단)
+ 필수 라이브러리(json, pandas, numpy, requests) 로드 완료
+>>> --screen-kr 모드: 국내 종목만 매일 재선정합니다 (미국 종목은 그대로 유지).
+
+======================================================================
+ [--screen] 국내만 ORB+VWAP 적합 종목 자동 추천
+======================================================================
+토큰 준비 완료
+
+[국내 종목 분석]
+국내 후보: KODEX 200선물인버스2X(252670), KODEX 인버스(114800), TIGER 200선물인버스2X(252710), KODEX 2차전지산업레버리지(462330), KODEX 코스닥150레버리지(233740), 금호건설(002990), KODEX 코스닥150선물인버스(251340), KODEX 코스닥150(229200), 삼성 인버스 2X 코스닥150 선물 ETN(Q530107), 금호전기(001210), 모아데이타(288980), 우리기술투자(041190), KODEX 200(069500), KODEX SK하이닉스단일종목레버리지(0193T0), 유니슨(018000)
+
+  [국내] KODEX 200선물인버스2X(252670) 조회 중...
+  [국내] KODEX 인버스(114800) 조회 중...
+  [국내] TIGER 200선물인버스2X(252710) 조회 중...
+  [국내] KODEX 2차전지산업레버리지(462330) 조회 중...
+  [국내] KODEX 코스닥150레버리지(233740) 조회 중...
+  [국내] 금호건설(002990) 조회 중...
+  [국내] KODEX 코스닥150선물인버스(251340) 조회 중...
+  [국내] KODEX 코스닥150(229200) 조회 중...
+  [국내] 삼성 인버스 2X 코스닥150 선물 ETN(Q530107) 조회 중...
+  [국내] 금호전기(001210) 조회 중...
+  [국내] 모아데이타(288980) 조회 중...
+  [국내] 우리기술투자(041190) 조회 중...
+  [국내] KODEX 200(069500) 조회 중...
+  [국내] KODEX SK하이닉스단일종목레버리지(0193T0) 조회 중...
+  [국내] 유니슨(018000) 조회 중...
+
+오류 발생:
+Traceback (most recent call last):
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 464, in _make_request
+    self._validate_conn(conn)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 1106, in _validate_conn
+    conn.connect()
+    ~~~~~~~~~~~~^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connection.py", line 796, in connect
+    sock_and_verified = _ssl_wrap_socket_and_match_hostname(
+        sock=sock,
+    ...<14 lines>...
+        assert_fingerprint=self.assert_fingerprint,
+    )
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connection.py", line 975, in _ssl_wrap_socket_and_match_hostname
+    ssl_sock = ssl_wrap_socket(
+        sock=sock,
+    ...<8 lines>...
+        tls_in_tls=tls_in_tls,
+    )
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\util\ssl_.py", line 433, in ssl_wrap_socket
+    ssl_sock = _ssl_wrap_socket_impl(sock, context, tls_in_tls, server_hostname)
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\util\ssl_.py", line 477, in _ssl_wrap_socket_impl
+    return ssl_context.wrap_socket(sock, server_hostname=server_hostname)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\ssl.py", line 455, in wrap_socket
+    return self.sslsocket_class._create(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sock=sock,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        session=session
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\ssl.py", line 1076, in _create
+    self.do_handshake()
+    ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\ssl.py", line 1372, in do_handshake
+    self._sslobj.do_handshake()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+TimeoutError: _ssl.c:1064: The handshake operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\adapters.py", line 696, in send
+    resp = conn.urlopen(
+        method=request.method,
+    ...<9 lines>...
+        chunked=chunked,
+    )
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+        method, url, error=new_e, _pool=self, _stacktrace=sys.exc_info()[2]
+    )
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\util\retry.py", line 498, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\util\util.py", line 39, in reraise
+    raise value
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+        conn,
+    ...<10 lines>...
+        **response_kw,
+    )
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 488, in _make_request
+    raise new_e
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 466, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=conn.timeout)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\urllib3\connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+        self, url, f"Read timed out. (read timeout={timeout_value})"
+    ) from err
+urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='openapivts.koreainvestment.com', port=29443): Read timed out. (read timeout=10)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\TradingBot\auto_trading_bot.py", line 2464, in <module>
+    _dispatch_mode()
+    ~~~~~~~~~~~~~~^^
+  File "C:\TradingBot\auto_trading_bot.py", line 2440, in _dispatch_mode
+    run_screening_mode(market="kr")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "C:\TradingBot\auto_trading_bot.py", line 2005, in run_screening_mode
+    df, err = screen_fetch_daily_chart(cfg, token, t)
+              ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "C:\TradingBot\auto_trading_bot.py", line 1533, in screen_fetch_daily_chart
+    res = requests.get(url, headers=headers, params=params, timeout=10)
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\api.py", line 87, in get
+    return request("get", url, params=params, **kwargs)
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+  File "C:\Users\SDS\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\requests\adapters.py", line 742, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='openapivts.koreainvestment.com', port=29443): Read timed out. (read timeout=10)
+ 실행 종료: 2026-08-30 06:01:54.187154
+============================================================
+
