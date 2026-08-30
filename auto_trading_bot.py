@@ -390,6 +390,46 @@ except ImportError:
 
 
 # ============================================================
+# 시장지수 등락률 조회 (마이너스 실적일과 시장 방향의 상관관계를 나중에 직접 분석하기 위해
+# 매매 로그에 그날 코스피/코스닥/S&P500/나스닥 등락률을 같이 남겨둠. 2026-08-30 추가)
+# ============================================================
+_INDEX_CHANGE_CACHE = {}  # 하루 실행 중 반복 조회 방지용 (프로세스 1회 실행마다 새로 시작되니 파일 캐싱은 불필요)
+
+_INDEX_TICKERS = {
+    "KOSPI": "^KS11", "KOSDAQ": "^KQ11",
+    "SP500": "^GSPC", "NASDAQ": "^IXIC",
+}
+
+
+def get_index_change_pct(index_name):
+    """index_name: "KOSPI"/"KOSDAQ"/"SP500"/"NASDAQ" 중 하나.
+    해당 지수의 "당일(가장 최근 거래일) 등락률(%)"을 반환. 조회 실패시 None.
+    같은 프로세스 실행 중엔 캐싱해서 같은 지수를 여러 번 조회 안 함(매매 여러 건이 한 번에 처리될 때 대비)."""
+    if index_name in _INDEX_CHANGE_CACHE:
+        return _INDEX_CHANGE_CACHE[index_name]
+    if yf is None or index_name not in _INDEX_TICKERS:
+        _INDEX_CHANGE_CACHE[index_name] = None
+        return None
+    try:
+        df = yf.download(_INDEX_TICKERS[index_name], period="5d", interval="1d",
+                          progress=False, auto_adjust=False, timeout=10)
+        if df.empty or len(df) < 2:
+            _INDEX_CHANGE_CACHE[index_name] = None
+            return None
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [c[0] for c in df.columns]
+        last_close = float(df["Close"].iloc[-1])
+        prev_close = float(df["Close"].iloc[-2])
+        pct = round((last_close - prev_close) / prev_close * 100, 2)
+        _INDEX_CHANGE_CACHE[index_name] = pct
+        return pct
+    except Exception as e:
+        print(f"  [알림] {index_name} 지수 등락률 조회 실패({e})")
+        _INDEX_CHANGE_CACHE[index_name] = None
+        return None
+
+
+# ============================================================
 # 상태 관리
 # ============================================================
 def load_state():
@@ -569,10 +609,20 @@ def log_order(action, ticker, price, shares, reason, extra=""):
 
     reason_kr = REASON_LABELS_KR.get(reason, reason)  # 모르는 코드가 들어와도 원문 그대로 표시(누락 방지)
 
+    # ⚠️ 국내/미국 거래가 같은 CSV 파일에 함께 저장되므로, 컬럼셋이 거래 종류에 따라
+    # 달라지면 예전에 겪었던 "파일 중간에 컬럼 수가 바뀌는" 파싱 버그가 재발함.
+    # 그래서 4개 지수 컬럼을 항상 전부 넣고, 해당 없는 지수는 빈 값으로 둠.
+    kospi_pct = get_index_change_pct("KOSPI") if "US" not in action else None
+    kosdaq_pct = get_index_change_pct("KOSDAQ") if "US" not in action else None
+    sp500_pct = get_index_change_pct("SP500") if "US" in action else None
+    nasdaq_pct = get_index_change_pct("NASDAQ") if "US" in action else None
+
     row = pd.DataFrame([{
         "timestamp": datetime.now().isoformat(), "action": action, "ticker": ticker,
         "price": price, "shares": shares, "reason": reason, "reason_kr": reason_kr, "extra": extra,
         "mode": "MOCK" if IS_MOCK else "REAL",
+        "KOSPI_pct": kospi_pct, "KOSDAQ_pct": kosdaq_pct,
+        "SP500_pct": sp500_pct, "NASDAQ_pct": nasdaq_pct,
     }])
 
     # 카카오톡 알림 (기록 성공/실패와 무관하게, 체결 자체는 이미 일어난 사실이므로 항상 시도)
